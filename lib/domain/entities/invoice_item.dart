@@ -15,7 +15,9 @@ class InvoiceItem {
     required this.gstRate,
   });
 
-  double get taxableValue => quantity * price;
-  double get gstAmount => (taxableValue * gstRate) / 100;
-  double get total => taxableValue + gstAmount;
+  double get taxableValue => double.parse((quantity * price).toStringAsFixed(2));
+  
+  double get gstAmount => double.parse(((taxableValue * gstRate) / 100).toStringAsFixed(2));
+  
+  double get total => double.parse((taxableValue + gstAmount).toStringAsFixed(2));
 }

@@ -8,13 +8,13 @@ class GSTCalculator {
 
     for (var item in items) {
       rateToTaxableValue[item.gstRate] =
-          (rateToTaxableValue[item.gstRate] ?? 0) + item.taxableValue;
+          round((rateToTaxableValue[item.gstRate] ?? 0) + item.taxableValue);
     }
 
     return rateToTaxableValue.entries.map((entry) {
       double rate = entry.key;
       double taxableValue = entry.value;
-      double totalGst = (taxableValue * rate) / 100;
+      double totalGst = round((taxableValue * rate) / 100);
 
       if (isInterState) {
         return TaxBreakup(
@@ -28,8 +28,8 @@ class GSTCalculator {
         return TaxBreakup(
           gstRate: rate,
           taxableValue: taxableValue,
-          cgst: totalGst / 2,
-          sgst: totalGst / 2,
+          cgst: round(totalGst / 2),
+          sgst: round(totalGst / 2),
           igst: 0,
         );
       }
@@ -37,11 +37,11 @@ class GSTCalculator {
   }
 
   static double calculateTotalTaxableAmount(List<InvoiceItem> items) {
-    return items.fold(0, (sum, item) => sum + item.taxableValue);
+    return round(items.fold(0.0, (sum, item) => sum + item.taxableValue));
   }
 
   static double calculateTotalGst(List<InvoiceItem> items) {
-    return items.fold(0, (sum, item) => sum + item.gstAmount);
+    return round(items.fold(0.0, (sum, item) => sum + item.gstAmount));
   }
 
   static double round(double value) {

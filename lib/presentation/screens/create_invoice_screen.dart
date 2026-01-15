@@ -25,9 +25,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   bool _isInterState = false;
   final _notesController = TextEditingController();
 
-  // Boolean to determine if we are performing a real update (existing ID)
-  // or a save (new or duplicated invoice)
   bool get _isRealUpdate => widget.existingInvoice != null && widget.existingInvoice!.id != null;
+  bool get _isReadOnly => widget.existingInvoice?.status == 'issued' || widget.existingInvoice?.status == 'cancelled';
 
   @override
   void initState() {
@@ -37,15 +36,16 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _invoiceItems = List.from(widget.existingInvoice!.items);
       _isInterState = widget.existingInvoice!.isInterState;
       _notesController.text = widget.existingInvoice!.notes ?? "";
-      
-      Future.microtask(() {
-        final customers = ref.read(customerListProvider).value;
-        if (customers != null) {
-          setState(() {
-            _selectedCustomer = customers.where((c) => c.id == widget.existingInvoice!.customerId).firstOrNull;
-          });
-        }
-      });
+    }
+  }
+
+  // Effect to select customer once data is available
+  void _syncSelectedCustomer(List<CustomerModel>? customers) {
+    if (widget.existingInvoice != null && _selectedCustomer == null && customers != null) {
+      final match = customers.where((c) => c.id == widget.existingInvoice!.customerId).firstOrNull;
+      if (match != null) {
+        setState(() => _selectedCustomer = match);
+      }
     }
   }
 
@@ -55,11 +55,15 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     final itemsAsync = ref.watch(itemListProvider);
     final nextInvoiceNumber = ref.watch(nextInvoiceNumberProvider);
 
+    // Call sync on every build to handle the case where customers load late
+    customersAsync.whenData(_syncSelectedCustomer);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: Text(_isRealUpdate ? 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}' : 'Create New Tax Invoice', 
+        title: Text(_isReadOnly ? 'View Invoice ${widget.existingInvoice!.invoiceNumber}' : 
+                   (_isRealUpdate ? 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}' : 'Create New Tax Invoice'), 
           style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Column(
@@ -67,32 +71,34 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 2, child: _buildCustomerSelection(customersAsync)),
-                      const SizedBox(width: 32),
-                      Expanded(flex: 1, child: _buildInvoiceMeta(nextInvoiceNumber)),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  _buildItemsSection(itemsAsync),
-                  const SizedBox(height: 32),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildNotesSection()),
-                      const SizedBox(width: 32),
-                      Expanded(child: _buildSummarySection()),
-                    ],
-                  ),
-                ],
+              child: IgnorePointer(
+                ignoring: _isReadOnly,
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 2, child: _buildCustomerSelection(customersAsync)),
+                        const SizedBox(width: 32),
+                        Expanded(flex: 1, child: _buildInvoiceMeta(nextInvoiceNumber)),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    _buildItemsSection(itemsAsync),
+                    const SizedBox(height: 32),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildNotesSection()),
+                        const SizedBox(width: 32),
+                        Expanded(child: _buildSummarySection()),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          // Persistent Footer for Action Button
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             decoration: BoxDecoration(
@@ -106,19 +112,21 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20)),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Discard'),
+                  child: Text(_isReadOnly ? 'Back' : 'Discard'),
                 ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  height: 56,
-                  width: 250,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                    onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
-                    icon: const Icon(Icons.check),
-                    label: Text(_isRealUpdate ? 'Update Invoice' : 'Save Invoice'),
+                if (!_isReadOnly) ...[
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    height: 56,
+                    width: 250,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                      onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
+                      icon: const Icon(Icons.check),
+                      label: Text(_isRealUpdate ? 'Update Invoice' : 'Save Invoice'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -146,7 +154,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 value: _selectedCustomer,
                 decoration: _buildInputDecoration('Select Customer', Icons.person_outline),
                 items: customers.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                onChanged: (val) => setState(() => _selectedCustomer = val),
+                onChanged: _isReadOnly ? null : (val) => setState(() => _selectedCustomer = val),
               ),
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text('Error loading customers: $e'),
@@ -182,7 +190,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             Text('Number: $displayNum', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             InkWell(
-              onTap: () async {
+              onTap: _isReadOnly ? null : () async {
                 final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
                 if (picked != null) setState(() => _selectedDate = picked);
               },
@@ -196,7 +204,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               title: const Text('Inter-state (IGST)'),
               subtitle: const Text('Check if customer is outside your state'),
               value: _isInterState,
-              onChanged: (val) => setState(() => _isInterState = val ?? false),
+              onChanged: _isReadOnly ? null : (val) => setState(() => _isInterState = val ?? false),
             ),
           ],
         ),
@@ -220,11 +228,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               children: [
                 _buildSectionLabel('Invoice Items'),
                 const Spacer(),
-                FilledButton.icon(
-                  onPressed: () => _addItemDialog(itemsAsync),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Item'),
-                ),
+                if (!_isReadOnly)
+                  FilledButton.icon(
+                    onPressed: () => _addItemDialog(itemsAsync),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Item'),
+                  ),
               ],
             ),
           ),
@@ -235,7 +244,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               DataColumn(label: Text('Price'), numeric: true),
               DataColumn(label: Text('GST %'), numeric: true),
               DataColumn(label: Text('Total'), numeric: true),
-              DataColumn(label: Text('')),
+              DataColumn(label: Text('')), 
             ],
             rows: _invoiceItems.asMap().entries.map((entry) {
               final idx = entry.key;
@@ -246,7 +255,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 DataCell(Text('₹${item.price.toStringAsFixed(2)}')),
                 DataCell(Text('${item.gstRate}%')),
                 DataCell(Text('₹${item.total.toStringAsFixed(2)}')),
-                DataCell(IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.red), onPressed: () => setState(() => _invoiceItems.removeAt(idx)))),
+                DataCell(
+                  _isReadOnly 
+                  ? const SizedBox.shrink() 
+                  : IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, color: Colors.red), 
+                      onPressed: () => setState(() => _invoiceItems.removeAt(idx))
+                    )
+                ),
               ]);
             }).toList(),
           ),
@@ -352,7 +368,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       children: [
         _buildSectionLabel('Terms / Notes'),
         const SizedBox(height: 16),
-        TextField(controller: _notesController, maxLines: 5, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Bank details, terms of payment, etc.')),
+        TextField(
+          controller: _notesController, 
+          maxLines: 5, 
+          readOnly: _isReadOnly,
+          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Bank details, terms of payment, etc.')
+        ),
       ],
     );
   }
@@ -386,6 +407,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       totalAmount: taxable + gstTotal,
       isInterState: _isInterState,
       notes: _notesController.text,
+      status: 'draft',
     );
 
     await ref.read(invoiceListProvider.notifier).saveInvoice(invoice);

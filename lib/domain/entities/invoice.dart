@@ -13,6 +13,7 @@ class Invoice {
   final double totalAmount;
   final bool isInterState;
   final String? notes;
+  final String status; // draft, issued, cancelled
 
   Invoice({
     this.id,
@@ -26,5 +27,6 @@ class Invoice {
     required this.totalAmount,
     required this.isInterState,
     this.notes,
+    this.status = 'draft',
   });
 }

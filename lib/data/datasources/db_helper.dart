@@ -22,7 +22,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 4, // Upgraded to version 4
+      version: 5, // Upgraded to version 5 for status changes
       onCreate: _onCreate,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -30,11 +30,10 @@ class DBHelper {
           await db.execute('ALTER TABLE invoice_items ADD COLUMN hsn TEXT');
         }
         if (oldVersion < 3) {
-          // Check if status column exists before adding
           var tableInfo = await db.rawQuery('PRAGMA table_info(invoices)');
           bool statusExists = tableInfo.any((column) => column['name'] == 'status');
           if (!statusExists) {
-            await db.execute('ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT "Active"');
+            await db.execute('ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT "draft"');
           }
         }
         if (oldVersion < 4) {
@@ -45,6 +44,10 @@ class DBHelper {
               deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
           ''');
+        }
+        if (oldVersion < 5) {
+          // Sync existing "Active" status to "draft" or "issued" if needed
+          await db.execute("UPDATE invoices SET status = 'draft' WHERE status = 'Active'");
         }
       },
       onConfigure: (db) async {
@@ -105,7 +108,7 @@ class DBHelper {
         total_gst REAL,
         is_inter_state INTEGER,
         notes TEXT,
-        status TEXT DEFAULT "Active",
+        status TEXT DEFAULT "draft",
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers (id)
       )

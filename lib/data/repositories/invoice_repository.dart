@@ -40,6 +40,7 @@ class InvoiceRepository {
         'total_gst': invoice.totalGst,
         'is_inter_state': invoice.isInterState ? 1 : 0,
         'notes': invoice.notes,
+        'status': invoice.status, // Uses entity status (default draft)
       };
 
       int invoiceId;
@@ -50,8 +51,6 @@ class InvoiceRepository {
         await txn.delete('tax_breakups', where: 'invoice_id = ?', whereArgs: [invoiceId]);
       } else {
         invoiceId = await txn.insert('invoices', invoiceMap);
-        
-        // Remove from deleted_invoice_numbers ONLY IF it was a recycled number
         await txn.delete('deleted_invoice_numbers', where: 'invoice_number = ?', whereArgs: [invoice.invoiceNumber]);
       }
 
@@ -131,6 +130,7 @@ class InvoiceRepository {
       totalAmount: (invMap['total_amount'] as num).toDouble(),
       isInterState: invMap['is_inter_state'] == 1,
       notes: invMap['notes'] as String?,
+      status: invMap['status'] as String? ?? 'draft',
     );
   }
 
@@ -156,7 +156,6 @@ class InvoiceRepository {
   Future<String> getNextInvoiceNumber() async {
     final db = await _dbHelper.database;
     
-    // Check deleted numbers (just to suggest, don't remove yet)
     final deleted = await db.query('deleted_invoice_numbers', orderBy: 'id ASC', limit: 1);
     if (deleted.isNotEmpty) {
       return deleted.first['invoice_number'] as String;
