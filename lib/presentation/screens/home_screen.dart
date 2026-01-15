@@ -94,11 +94,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class InvoiceManagementScreen extends ConsumerWidget {
+class InvoiceManagementScreen extends ConsumerStatefulWidget {
   const InvoiceManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InvoiceManagementScreen> createState() => _InvoiceManagementScreenState();
+}
+
+class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final invoicesAsync = ref.watch(invoiceListProvider);
 
     return Scaffold(
@@ -111,169 +125,193 @@ class InvoiceManagementScreen extends ConsumerWidget {
           'Invoices',
           style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 24),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CreateInvoiceScreen()),
-              ),
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Create Invoice', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ],
-      ),
-      body: invoicesAsync.when(
-        data: (invoices) => invoices.isEmpty
-            ? _buildEmptyState()
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                      columns: const [
-                        DataColumn(label: Text('DATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('INV #', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('CUSTOMER', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                      ],
-                      rows: invoices.map((invoice) {
-                        final date = DateTime.parse(invoice['date']);
-                        final status = invoice['status'] as String? ?? 'draft';
-                        final isDraft = status == 'draft';
-                        final isCancelled = status == 'cancelled';
-                        final invId = invoice['id'] as int;
-
-                        return DataRow(
-                          color: WidgetStateProperty.resolveWith<Color?>((states) {
-                            if (isCancelled) return Colors.red.withValues(alpha: 0.02);
-                            return null;
-                          }),
-                          cells: [
-                            DataCell(Text(DateFormat('dd-MMM-yyyy').format(date), style: TextStyle(decoration: isCancelled ? TextDecoration.lineThrough : null))),
-                            DataCell(Text(invoice['invoice_number'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isCancelled ? TextDecoration.lineThrough : null))),
-                            DataCell(Text(invoice['customer_name'], style: TextStyle(decoration: isCancelled ? TextDecoration.lineThrough : null))),
-                            DataCell(Text("₹${(invoice['total_amount'] as num).toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: isCancelled ? Colors.grey : const Color(0xFF2563EB)))),
-                            DataCell(_buildStatusChip(status)),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF64748B), size: 20),
-                                  tooltip: 'Print / PDF',
-                                  onPressed: isCancelled ? null : () async {
-                                    final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
-                                    if (fullInvoice != null && context.mounted) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => PdfPreviewScreen(invoice: fullInvoice)),
-                                      );
-                                    }
-                                  },
-                                ),
-                                IconButton(
-                                  icon: Icon(isDraft ? Icons.edit_outlined : Icons.visibility_outlined, color: const Color(0xFF64748B), size: 20),
-                                  tooltip: isDraft ? 'Edit' : 'View',
-                                  onPressed: () async {
-                                    final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
-                                    if (fullInvoice != null && context.mounted) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: fullInvoice)),
-                                      );
-                                    }
-                                  },
-                                ),
-                                PopupMenuButton<String>(
-                                  icon: const Icon(Icons.more_vert, color: Color(0xFF64748B), size: 20),
-                                  onSelected: (value) async {
-                                    if (value == 'delete') {
-                                      _confirmDelete(context, ref, invId, invoice['invoice_number']);
-                                    } else if (value == 'cancel') {
-                                      _confirmCancel(context, ref, invId);
-                                    } else if (value == 'issue') {
-                                      _confirmIssue(context, ref, invId);
-                                    } else if (value == 'duplicate') {
-                                      final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
-                                      if (fullInvoice != null && context.mounted) {
-                                        final duplicate = Invoice(
-                                          invoiceNumber: await ref.read(nextInvoiceNumberProvider.future),
-                                          date: DateTime.now(),
-                                          customerId: fullInvoice.customerId,
-                                          items: fullInvoice.items,
-                                          taxBreakups: fullInvoice.taxBreakups,
-                                          totalTaxableAmount: fullInvoice.totalTaxableAmount,
-                                          totalGst: fullInvoice.totalGst,
-                                          totalAmount: fullInvoice.totalAmount,
-                                          isInterState: fullInvoice.isInterState,
-                                          notes: fullInvoice.notes,
-                                          status: 'draft',
-                                        );
-                                        if (context.mounted) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: duplicate)),
-                                          );
-                                        }
-                                      }
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    if (isDraft)
-                                      const PopupMenuItem(
-                                        value: 'issue',
-                                        child: Row(children: [Icon(Icons.send_outlined, size: 18, color: Colors.green), SizedBox(width: 8), Text('Issue Invoice')]),
-                                      ),
-                                    const PopupMenuItem(
-                                      value: 'duplicate',
-                                      child: Row(children: [Icon(Icons.copy, size: 18), SizedBox(width: 8), Text('Duplicate')]),
-                                    ),
-                                    if (!isCancelled)
-                                      const PopupMenuItem(
-                                        value: 'cancel',
-                                        child: Row(children: [Icon(Icons.block, size: 18), SizedBox(width: 8), Text('Cancel Invoice')]),
-                                      ),
-                                    if (isDraft)
-                                      const PopupMenuItem(
-                                        value: 'delete',
-                                        child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text('Delete Permanently', style: TextStyle(color: Colors.red))]),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            )),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(80),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SearchBar(
+                    controller: _searchController,
+                    hintText: 'Search by Invoice # or Customer...',
+                    leading: const Icon(Icons.search, color: Color(0xFF64748B)),
+                    onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                    elevation: WidgetStateProperty.all(0),
+                    backgroundColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                    shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   ),
                 ),
-              ),
+                const SizedBox(width: 24),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CreateInvoiceScreen()),
+                  ),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('Create Invoice', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: invoicesAsync.when(
+        data: (invoices) {
+          final filtered = invoices.where((inv) {
+            return inv['invoice_number'].toString().toLowerCase().contains(_searchQuery) ||
+                   inv['customer_name'].toString().toLowerCase().contains(_searchQuery);
+          }).toList();
+
+          return filtered.isEmpty
+              ? _buildEmptyState(_searchQuery.isNotEmpty)
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                        columns: const [
+                          DataColumn(label: Text('DATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('INV #', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('CUSTOMER', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                        ],
+                        rows: filtered.map((invoice) {
+                          final date = DateTime.parse(invoice['date']);
+                          final status = invoice['status'] as String? ?? 'draft';
+                          final isDraft = status == 'draft';
+                          final isCancelled = status == 'cancelled';
+                          final invId = invoice['id'] as int;
+
+                          return DataRow(
+                            color: WidgetStateProperty.resolveWith<Color?>((states) {
+                              if (isCancelled) return Colors.red.withValues(alpha: 0.02);
+                              return null;
+                            }),
+                            cells: [
+                              DataCell(Text(DateFormat('dd-MMM-yyyy').format(date), style: TextStyle(decoration: isCancelled ? TextDecoration.lineThrough : null))),
+                              DataCell(Text(invoice['invoice_number'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isCancelled ? TextDecoration.lineThrough : null))),
+                              DataCell(Text(invoice['customer_name'], style: TextStyle(decoration: isCancelled ? TextDecoration.lineThrough : null))),
+                              DataCell(Text("₹${(invoice['total_amount'] as num).toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: isCancelled ? Colors.grey : const Color(0xFF2563EB)))),
+                              DataCell(_buildStatusChip(status)),
+                              DataCell(Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF64748B), size: 20),
+                                    tooltip: 'Print / PDF',
+                                    onPressed: isCancelled ? null : () async {
+                                      final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                      if (fullInvoice != null && context.mounted) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => PdfPreviewScreen(invoice: fullInvoice)),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: Icon(isDraft ? Icons.edit_outlined : Icons.visibility_outlined, color: const Color(0xFF64748B), size: 20),
+                                    tooltip: isDraft ? 'Edit' : 'View',
+                                    onPressed: () async {
+                                      final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                      if (fullInvoice != null && context.mounted) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: fullInvoice)),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_vert, color: Color(0xFF64748B), size: 20),
+                                    onSelected: (value) async {
+                                      if (value == 'delete') {
+                                        _confirmDelete(context, ref, invId, invoice['invoice_number']);
+                                      } else if (value == 'cancel') {
+                                        _confirmCancel(context, ref, invId);
+                                      } else if (value == 'issue') {
+                                        _confirmIssue(context, ref, invId);
+                                      } else if (value == 'duplicate') {
+                                        final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                        if (fullInvoice != null && context.mounted) {
+                                          final duplicate = Invoice(
+                                            invoiceNumber: await ref.read(nextInvoiceNumberProvider.future),
+                                            date: DateTime.now(),
+                                            customerId: fullInvoice.customerId,
+                                            items: fullInvoice.items,
+                                            taxBreakups: fullInvoice.taxBreakups,
+                                            totalTaxableAmount: fullInvoice.totalTaxableAmount,
+                                            totalGst: fullInvoice.totalGst,
+                                            totalAmount: fullInvoice.totalAmount,
+                                            isInterState: fullInvoice.isInterState,
+                                            notes: fullInvoice.notes,
+                                            status: 'draft',
+                                          );
+                                          if (context.mounted) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: duplicate)),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      if (isDraft)
+                                        const PopupMenuItem(
+                                          value: 'issue',
+                                          child: Row(children: [Icon(Icons.send_outlined, size: 18, color: Colors.green), SizedBox(width: 8), Text('Issue Invoice')]),
+                                        ),
+                                      const PopupMenuItem(
+                                        value: 'duplicate',
+                                        child: Row(children: [Icon(Icons.copy, size: 18), SizedBox(width: 8), Text('Duplicate')]),
+                                      ),
+                                      if (!isCancelled)
+                                        const PopupMenuItem(
+                                          value: 'cancel',
+                                          child: Row(children: [Icon(Icons.block, size: 18), SizedBox(width: 8), Text('Cancel Invoice')]),
+                                        ),
+                                      if (isDraft)
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text('Delete Permanently', style: TextStyle(color: Colors.red))]),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              )),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) => Center(child: Text('Error: \$err')),
       ),
     );
   }
@@ -302,7 +340,7 @@ class InvoiceManagementScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Permanently?'),
-        content: Text('Invoice $number will be removed from the database.'),
+        content: Text('Invoice \$number will be removed from the database.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
@@ -357,7 +395,7 @@ class InvoiceManagementScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isSearch) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -365,12 +403,14 @@ class InvoiceManagementScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-            child: Icon(Icons.description_outlined, size: 64, color: Colors.blue.shade300),
+            child: Icon(isSearch ? Icons.search_off : Icons.description_outlined, size: 64, color: Colors.blue.shade300),
           ),
           const SizedBox(height: 24),
-          const Text('No invoices found', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+          Text(isSearch ? 'No matches found' : 'No invoices found', 
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
           const SizedBox(height: 8),
-          const Text('Create your first invoice to see it listed here.', style: TextStyle(color: Color(0xFF64748B))),
+          Text(isSearch ? 'Try a different search term.' : 'Create your first invoice to see it listed here.', 
+            style: const TextStyle(color: Color(0xFF64748B))),
         ],
       ),
     );

@@ -3,11 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/item_model.dart';
 import '../state/item_provider.dart';
 
-class ItemListScreen extends ConsumerWidget {
+class ItemListScreen extends ConsumerStatefulWidget {
   const ItemListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ItemListScreen> createState() => _ItemListScreenState();
+}
+
+class _ItemListScreenState extends ConsumerState<ItemListScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final itemsAsync = ref.watch(itemListProvider);
 
     return Scaffold(
@@ -20,87 +34,111 @@ class ItemListScreen extends ConsumerWidget {
           'Inventory Items',
           style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 24),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => _showItemForm(context, ref),
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Add New Item', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ],
-      ),
-      body: itemsAsync.when(
-        data: (items) => items.isEmpty
-            ? _buildEmptyState()
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
-                    child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(const Color(0xFFF8FAFC)),
-                      columns: const [
-                        DataColumn(label: Text('ITEM NAME', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('HSN/SAC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('UNIT', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('PRICE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('GST RATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                      ],
-                      rows: items.map((item) {
-                        return DataRow(cells: [
-                          DataCell(Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                          DataCell(Text(item.hsn?.isEmpty ?? true ? 'N/A' : item.hsn!)),
-                          DataCell(Text(item.unit)),
-                          DataCell(Text('₹${item.price.toStringAsFixed(2)}')),
-                          DataCell(Text('${item.gstRate}%')),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
-                                onPressed: () => _showItemForm(context, ref, item: item),
-                                tooltip: 'Edit',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
-                                onPressed: () => _confirmDelete(context, ref, item),
-                                tooltip: 'Delete',
-                              ),
-                            ],
-                          )),
-                        ]);
-                      }).toList(),
-                    ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(80),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SearchBar(
+                    controller: _searchController,
+                    hintText: 'Search by item name or HSN...',
+                    leading: const Icon(Icons.search, color: Color(0xFF64748B)),
+                    onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                    elevation: WidgetStateProperty.all(0),
+                    backgroundColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                    shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   ),
                 ),
-              ),
+                const SizedBox(width: 24),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showItemForm(context, ref),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('Add New Item', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: itemsAsync.when(
+        data: (items) {
+          final filtered = items.where((i) {
+            return i.name.toLowerCase().contains(_searchQuery) ||
+                   (i.hsn?.toLowerCase().contains(_searchQuery) ?? false);
+          }).toList();
+
+          return filtered.isEmpty
+              ? _buildEmptyState(_searchQuery.isNotEmpty)
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                        columns: const [
+                          DataColumn(label: Text('ITEM NAME', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('HSN/SAC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('UNIT', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('PRICE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('GST RATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                        ],
+                        rows: filtered.map((item) {
+                          return DataRow(cells: [
+                            DataCell(Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                            DataCell(Text(item.hsn?.isEmpty ?? true ? 'N/A' : item.hsn!)),
+                            DataCell(Text(item.unit)),
+                            DataCell(Text('₹${item.price.toStringAsFixed(2)}')),
+                            DataCell(Text('${item.gstRate}%')),
+                            DataCell(Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
+                                  onPressed: () => _showItemForm(context, ref, item: item),
+                                  tooltip: 'Edit',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+                                  onPressed: () => _confirmDelete(context, ref, item),
+                                  tooltip: 'Delete',
+                                ),
+                              ],
+                            )),
+                          ]);
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isSearch) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -108,12 +146,14 @@ class ItemListScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-            child: Icon(Icons.inventory_2_outlined, size: 64, color: Colors.blue.shade300),
+            child: Icon(isSearch ? Icons.search_off : Icons.inventory_2_outlined, size: 64, color: Colors.blue.shade300),
           ),
           const SizedBox(height: 24),
-          const Text('Inventory is empty', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+          Text(isSearch ? 'No matches found' : 'Inventory is empty', 
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
           const SizedBox(height: 8),
-          const Text('Add products or services to start billing.', style: TextStyle(color: Color(0xFF64748B))),
+          Text(isSearch ? 'Try a different search term.' : 'Add products or services to start billing.', 
+            style: const TextStyle(color: Color(0xFF64748B))),
         ],
       ),
     );
@@ -129,7 +169,7 @@ class ItemListScreen extends ConsumerWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 24,
@@ -144,7 +184,6 @@ class ItemListScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                 decoration: const BoxDecoration(
@@ -169,8 +208,6 @@ class ItemListScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-
-              // Form Content
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(32),
@@ -225,8 +262,6 @@ class ItemListScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-
-              // Footer
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                 decoration: const BoxDecoration(

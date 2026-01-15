@@ -3,11 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/customer_model.dart';
 import '../state/customer_provider.dart';
 
-class CustomerListScreen extends ConsumerWidget {
+class CustomerListScreen extends ConsumerStatefulWidget {
   const CustomerListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomerListScreen> createState() => _CustomerListScreenState();
+}
+
+class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final customersAsync = ref.watch(customerListProvider);
 
     return Scaffold(
@@ -20,85 +34,109 @@ class CustomerListScreen extends ConsumerWidget {
           'Customers',
           style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 24),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => _showProfessionalForm(context, ref),
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Add New Customer', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ],
-      ),
-      body: customersAsync.when(
-        data: (customers) => customers.isEmpty
-            ? _buildEmptyState()
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                      columns: const [
-                        DataColumn(label: Text('NAME', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('GSTIN', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('STATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('PHONE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                      ],
-                      rows: customers.map((customer) {
-                        return DataRow(cells: [
-                          DataCell(Text(customer.name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                          DataCell(Text(customer.gstin ?? 'N/A')),
-                          DataCell(Text(customer.state ?? 'N/A')),
-                          DataCell(Text(customer.phone ?? 'N/A')),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
-                                onPressed: () => _showProfessionalForm(context, ref, customer: customer),
-                                tooltip: 'Edit',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
-                                onPressed: () => _confirmDelete(context, ref, customer),
-                                tooltip: 'Delete',
-                              ),
-                            ],
-                          )),
-                        ]);
-                      }).toList(),
-                    ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(80),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SearchBar(
+                    controller: _searchController,
+                    hintText: 'Search by name or GSTIN...',
+                    leading: const Icon(Icons.search, color: Color(0xFF64748B)),
+                    onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                    elevation: WidgetStateProperty.all(0),
+                    backgroundColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                    shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   ),
                 ),
-              ),
+                const SizedBox(width: 24),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showProfessionalForm(context, ref),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('Add New Customer', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: customersAsync.when(
+        data: (customers) {
+          final filtered = customers.where((c) {
+            return c.name.toLowerCase().contains(_searchQuery) ||
+                   (c.gstin?.toLowerCase().contains(_searchQuery) ?? false);
+          }).toList();
+
+          return filtered.isEmpty
+              ? _buildEmptyState(_searchQuery.isNotEmpty)
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                        columns: const [
+                          DataColumn(label: Text('NAME', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('GSTIN', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('STATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('PHONE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                          DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                        ],
+                        rows: filtered.map((customer) {
+                          return DataRow(cells: [
+                            DataCell(Text(customer.name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                            DataCell(Text(customer.gstin ?? 'N/A')),
+                            DataCell(Text(customer.state ?? 'N/A')),
+                            DataCell(Text(customer.phone ?? 'N/A')),
+                            DataCell(Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
+                                  onPressed: () => _showProfessionalForm(context, ref, customer: customer),
+                                  tooltip: 'Edit',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+                                  onPressed: () => _confirmDelete(context, ref, customer),
+                                  tooltip: 'Delete',
+                                ),
+                              ],
+                            )),
+                          ]);
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isSearch) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -106,12 +144,14 @@ class CustomerListScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-            child: Icon(Icons.people_outline, size: 64, color: Colors.blue.shade300),
+            child: Icon(isSearch ? Icons.search_off : Icons.people_outline, size: 64, color: Colors.blue.shade300),
           ),
           const SizedBox(height: 24),
-          const Text('No customers found', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+          Text(isSearch ? 'No matches found' : 'No customers found', 
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
           const SizedBox(height: 8),
-          const Text('Start by adding your first customer to the system.', style: TextStyle(color: Color(0xFF64748B))),
+          Text(isSearch ? 'Try a different search term.' : 'Start by adding your first customer to the system.', 
+            style: const TextStyle(color: Color(0xFF64748B))),
         ],
       ),
     );
@@ -144,7 +184,6 @@ class CustomerListScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                 decoration: const BoxDecoration(
@@ -169,8 +208,6 @@ class CustomerListScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-
-              // Form Content
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(32),
@@ -243,8 +280,6 @@ class CustomerListScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-
-              // Footer
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                 decoration: const BoxDecoration(
