@@ -7,9 +7,29 @@ import '../../domain/entities/tax_breakup.dart';
 class InvoiceRepository {
   final DBHelper _dbHelper = DBHelper();
 
+  Future<bool> isInvoiceNumberExists(String invoiceNumber, {String? excludeId}) async {
+    final db = await _dbHelper.database;
+    List<Map<String, dynamic>> result;
+    if (excludeId != null) {
+      result = await db.query('invoices', 
+        where: 'invoice_number = ? AND id != ?', 
+        whereArgs: [invoiceNumber, int.parse(excludeId)]);
+    } else {
+      result = await db.query('invoices', 
+        where: 'invoice_number = ?', 
+        whereArgs: [invoiceNumber]);
+    }
+    return result.isNotEmpty;
+  }
+
   Future<int> saveInvoice(Invoice invoice) async {
     final db = await _dbHelper.database;
     
+    // Check for duplicate number
+    if (await isInvoiceNumberExists(invoice.invoiceNumber, excludeId: invoice.id)) {
+      throw Exception('Invoice number ${invoice.invoiceNumber} already exists.');
+    }
+
     return await db.transaction((txn) async {
       final invoiceMap = {
         'invoice_number': invoice.invoiceNumber,
@@ -30,6 +50,9 @@ class InvoiceRepository {
         await txn.delete('tax_breakups', where: 'invoice_id = ?', whereArgs: [invoiceId]);
       } else {
         invoiceId = await txn.insert('invoices', invoiceMap);
+        
+        // Remove from deleted_invoice_numbers ONLY IF it was a recycled number
+        await txn.delete('deleted_invoice_numbers', where: 'invoice_number = ?', whereArgs: [invoice.invoiceNumber]);
       }
 
       for (var item in invoice.items) {
@@ -118,13 +141,35 @@ class InvoiceRepository {
 
   Future<void> deleteInvoice(int id) async {
     final db = await _dbHelper.database;
-    await db.delete('invoices', where: 'id = ?', whereArgs: [id]);
+    
+    await db.transaction((txn) async {
+      final maps = await txn.query('invoices', columns: ['invoice_number'], where: 'id = ?', whereArgs: [id]);
+      if (maps.isNotEmpty) {
+        final invoiceNumber = maps.first['invoice_number'] as String;
+        await txn.insert('deleted_invoice_numbers', {'invoice_number': invoiceNumber});
+      }
+      
+      await txn.delete('invoices', where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   Future<String> getNextInvoiceNumber() async {
     final db = await _dbHelper.database;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM invoices');
-    int count = Sqflite.firstIntValue(result) ?? 0;
-    return 'INV-${(count + 1).toString().padLeft(4, '0')}';
+    
+    // Check deleted numbers (just to suggest, don't remove yet)
+    final deleted = await db.query('deleted_invoice_numbers', orderBy: 'id ASC', limit: 1);
+    if (deleted.isNotEmpty) {
+      return deleted.first['invoice_number'] as String;
+    }
+
+    final result = await db.rawQuery('SELECT invoice_number FROM invoices');
+    int maxNum = 0;
+    for (var row in result) {
+      String numStr = row['invoice_number'] as String;
+      int? val = int.tryParse(numStr.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (val != null && val > maxNum) maxNum = val;
+    }
+    
+    return 'INV-${(maxNum + 1).toString().padLeft(4, '0')}';
   }
 }

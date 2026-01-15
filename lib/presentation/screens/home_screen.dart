@@ -6,6 +6,7 @@ import 'item_list_screen.dart';
 import 'create_invoice_screen.dart';
 import 'company_profile_screen.dart';
 import '../state/invoice_provider.dart';
+import '../../domain/entities/invoice.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -161,6 +162,7 @@ class InvoiceManagementScreen extends ConsumerWidget {
                       ],
                       rows: invoices.map((invoice) {
                         final date = DateTime.parse(invoice['date']);
+                        final invId = invoice['id'] as int;
                         return DataRow(cells: [
                           DataCell(Text(DateFormat('dd-MMM-yyyy').format(date))),
                           DataCell(Text(invoice['invoice_number'], style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -183,7 +185,6 @@ class InvoiceManagementScreen extends ConsumerWidget {
                                 icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
                                 tooltip: 'Edit',
                                 onPressed: () async {
-                                  final invId = invoice['id'] as int;
                                   final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
                                   if (fullInvoice != null && context.mounted) {
                                     Navigator.push(
@@ -195,10 +196,33 @@ class InvoiceManagementScreen extends ConsumerWidget {
                               ),
                               PopupMenuButton<String>(
                                 icon: const Icon(Icons.more_vert, color: Color(0xFF64748B), size: 20),
-                                onSelected: (value) {
+                                onSelected: (value) async {
                                   if (value == 'delete') {
-                                    final invId = invoice['id'] as int;
                                     _confirmDelete(context, ref, invId, invoice['invoice_number']);
+                                  } else if (value == 'duplicate') {
+                                    final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                    if (fullInvoice != null && context.mounted) {
+                                      // To duplicate, we create a NEW invoice object with same items but NO ID and a NEW current date
+                                      final duplicate = Invoice(
+                                        invoiceNumber: await ref.read(nextInvoiceNumberProvider.future),
+                                        date: DateTime.now(),
+                                        customerId: fullInvoice.customerId,
+                                        items: fullInvoice.items,
+                                        taxBreakups: fullInvoice.taxBreakups,
+                                        totalTaxableAmount: fullInvoice.totalTaxableAmount,
+                                        totalGst: fullInvoice.totalGst,
+                                        totalAmount: fullInvoice.totalAmount,
+                                        isInterState: fullInvoice.isInterState,
+                                        notes: fullInvoice.notes,
+                                      );
+                                      
+                                      if (context.mounted) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: duplicate)),
+                                        );
+                                      }
+                                    }
                                   }
                                 },
                                 itemBuilder: (context) => [

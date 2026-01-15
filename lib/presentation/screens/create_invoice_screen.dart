@@ -25,6 +25,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   bool _isInterState = false;
   final _notesController = TextEditingController();
 
+  // Boolean to determine if we are performing a real update (existing ID)
+  // or a save (new or duplicated invoice)
+  bool get _isRealUpdate => widget.existingInvoice != null && widget.existingInvoice!.id != null;
+
   @override
   void initState() {
     super.initState();
@@ -55,45 +59,70 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: Text(widget.existingInvoice == null ? 'Create New Tax Invoice' : 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}', 
+        title: Text(_isRealUpdate ? 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}' : 'Create New Tax Invoice', 
           style: const TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 24),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-              onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
-              icon: const Icon(Icons.check),
-              label: Text(widget.existingInvoice == null ? 'Save Invoice' : 'Update Invoice'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 2, child: _buildCustomerSelection(customersAsync)),
+                      const SizedBox(width: 32),
+                      Expanded(flex: 1, child: _buildInvoiceMeta(nextInvoiceNumber)),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  _buildItemsSection(itemsAsync),
+                  const SizedBox(height: 32),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildNotesSection()),
+                      const SizedBox(width: 32),
+                      Expanded(child: _buildSummarySection()),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Persistent Footer for Action Button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20)),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Discard'),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  height: 56,
+                  width: 250,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                    onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
+                    icon: const Icon(Icons.check),
+                    label: Text(_isRealUpdate ? 'Update Invoice' : 'Save Invoice'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 2, child: _buildCustomerSelection(customersAsync)),
-                const SizedBox(width: 32),
-                Expanded(flex: 1, child: _buildInvoiceMeta(nextInvoiceNumber)),
-              ],
-            ),
-            const SizedBox(height: 32),
-            _buildItemsSection(itemsAsync),
-            const SizedBox(height: 32),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _buildNotesSection()),
-                const SizedBox(width: 32),
-                Expanded(child: _buildSummarySection()),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -337,13 +366,16 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   }
 
   void _saveInvoice() async {
-    final invNumber = widget.existingInvoice?.invoiceNumber ?? ref.read(nextInvoiceNumberProvider).value ?? "INV-TEMP";
+    final invNumber = widget.existingInvoice?.id == null 
+        ? (ref.read(nextInvoiceNumberProvider).value ?? "INV-TEMP")
+        : widget.existingInvoice!.invoiceNumber;
+
     final taxBreakup = GSTCalculator.calculateTaxBreakup(_invoiceItems, _isInterState);
     final taxable = GSTCalculator.calculateTotalTaxableAmount(_invoiceItems);
     final gstTotal = GSTCalculator.calculateTotalGst(_invoiceItems);
 
     final invoice = Invoice(
-      id: widget.existingInvoice?.id,
+      id: _isRealUpdate ? widget.existingInvoice!.id : null,
       invoiceNumber: invNumber,
       date: _selectedDate,
       customerId: _selectedCustomer!.id!,
@@ -358,7 +390,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
     await ref.read(invoiceListProvider.notifier).saveInvoice(invoice);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.existingInvoice == null ? 'Invoice saved successfully!' : 'Invoice updated successfully!')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isRealUpdate ? 'Invoice updated successfully!' : 'Invoice saved successfully!')));
       ref.invalidate(nextInvoiceNumberProvider);
       Navigator.pop(context);
     }
