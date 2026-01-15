@@ -154,9 +154,10 @@ class InvoiceManagementScreen extends ConsumerWidget {
                         DataColumn(label: Text('DATE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                         DataColumn(label: Text('INV #', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                         DataColumn(label: Text('CUSTOMER', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
-                        DataColumn(label: Text('AMOUNT', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                        DataColumn(label: Text('TAXABLE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                         DataColumn(label: Text('GST', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                         DataColumn(label: Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
+                        DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                       ],
                       rows: invoices.map((invoice) {
                         final date = DateTime.parse(invoice['date']);
@@ -164,9 +165,67 @@ class InvoiceManagementScreen extends ConsumerWidget {
                           DataCell(Text(DateFormat('dd-MMM-yyyy').format(date))),
                           DataCell(Text(invoice['invoice_number'], style: const TextStyle(fontWeight: FontWeight.bold))),
                           DataCell(Text(invoice['customer_name'])),
-                          DataCell(Text('₹${(invoice['taxable_amount'] as num).toStringAsFixed(2)}')),
-                          DataCell(Text('₹${(invoice['total_gst'] as num).toStringAsFixed(2)}')),
-                          DataCell(Text('₹${(invoice['total_amount'] as num).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2563EB)))),
+                          DataCell(Text("₹${(invoice['taxable_amount'] as num).toStringAsFixed(2)}")),
+                          DataCell(Text("₹${(invoice['total_gst'] as num).toStringAsFixed(2)}")),
+                          DataCell(Text("₹${(invoice['total_amount'] as num).toStringAsFixed(2)}", 
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2563EB)))),
+                          DataCell(Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF64748B), size: 20),
+                                tooltip: 'Print / PDF',
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF generation coming soon!')));
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
+                                tooltip: 'Edit',
+                                onPressed: () async {
+                                  final invId = invoice['id'] as int;
+                                  final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                  if (fullInvoice != null && context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => CreateInvoiceScreen(existingInvoice: fullInvoice)),
+                                    );
+                                  }
+                                },
+                              ),
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: Color(0xFF64748B), size: 20),
+                                onSelected: (value) {
+                                  if (value == 'delete') {
+                                    final invId = invoice['id'] as int;
+                                    _confirmDelete(context, ref, invId, invoice['invoice_number']);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'duplicate',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.copy, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('Duplicate'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )),
                         ]);
                       }).toList(),
                     ),
@@ -175,6 +234,26 @@ class InvoiceManagementScreen extends ConsumerWidget {
               ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, int id, String number) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Permanently?'),
+        content: Text('Invoice $number will be removed from the database. This action is irreversible.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              ref.read(invoiceListProvider.notifier).deleteInvoice(id);
+              Navigator.pop(context);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

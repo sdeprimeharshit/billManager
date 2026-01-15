@@ -11,7 +11,8 @@ import '../state/item_provider.dart';
 import '../state/invoice_provider.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
-  const CreateInvoiceScreen({super.key});
+  final Invoice? existingInvoice;
+  const CreateInvoiceScreen({super.key, this.existingInvoice});
 
   @override
   ConsumerState<CreateInvoiceScreen> createState() => _CreateInvoiceScreenState();
@@ -20,9 +21,29 @@ class CreateInvoiceScreen extends ConsumerStatefulWidget {
 class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   CustomerModel? _selectedCustomer;
   DateTime _selectedDate = DateTime.now();
-  final List<InvoiceItem> _invoiceItems = [];
+  List<InvoiceItem> _invoiceItems = [];
   bool _isInterState = false;
   final _notesController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingInvoice != null) {
+      _selectedDate = widget.existingInvoice!.date;
+      _invoiceItems = List.from(widget.existingInvoice!.items);
+      _isInterState = widget.existingInvoice!.isInterState;
+      _notesController.text = widget.existingInvoice!.notes ?? "";
+      
+      Future.microtask(() {
+        final customers = ref.read(customerListProvider).value;
+        if (customers != null) {
+          setState(() {
+            _selectedCustomer = customers.where((c) => c.id == widget.existingInvoice!.customerId).firstOrNull;
+          });
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +55,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: const Text('Create New Tax Invoice', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(widget.existingInvoice == null ? 'Create New Tax Invoice' : 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}', 
+          style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 24),
@@ -42,7 +64,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
               onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
               icon: const Icon(Icons.check),
-              label: const Text('Save Invoice'),
+              label: Text(widget.existingInvoice == null ? 'Save Invoice' : 'Update Invoice'),
             ),
           ),
         ],
@@ -102,9 +124,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             ),
             if (_selectedCustomer != null) ...[
               const SizedBox(height: 16),
-              Text('GSTIN: \${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold)),
               Text(_selectedCustomer!.address ?? ""),
-              Text('\${_selectedCustomer!.state ?? ""} (\${_selectedCustomer!.stateCode ?? ""})'),
+              Text('${_selectedCustomer!.state ?? ""} (${_selectedCustomer!.stateCode ?? ""})'),
             ],
           ],
         ),
@@ -113,6 +135,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   }
 
   Widget _buildInvoiceMeta(AsyncValue<String> nextNumber) {
+    final displayNum = widget.existingInvoice?.invoiceNumber ?? nextNumber.value ?? "Loading...";
+    
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -126,7 +150,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           children: [
             _buildSectionLabel('Invoice Details'),
             const SizedBox(height: 16),
-            Text('Number: \${nextNumber.value ?? "Loading..."}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Number: $displayNum', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             InkWell(
               onTap: () async {
@@ -190,9 +214,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               return DataRow(cells: [
                 DataCell(Text(item.itemName)),
                 DataCell(Text(item.quantity.toString())),
-                DataCell(Text('₹\${item.price}')),
-                DataCell(Text('\${item.gstRate}%')),
-                DataCell(Text('₹\${item.total.toStringAsFixed(2)}')),
+                DataCell(Text('₹${item.price.toStringAsFixed(2)}')),
+                DataCell(Text('${item.gstRate}%')),
+                DataCell(Text('₹${item.total.toStringAsFixed(2)}')),
                 DataCell(IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.red), onPressed: () => setState(() => _invoiceItems.removeAt(idx)))),
               ]);
             }).toList(),
@@ -221,7 +245,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 onChanged: (val) => selectedItem = val,
               ),
               loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('Error: \$e'),
+              error: (e, _) => Text('Error: $e'),
             ),
             const SizedBox(height: 16),
             TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
@@ -271,7 +295,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Grand Total', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('₹\${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
               ],
             ),
           ],
@@ -287,7 +311,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Color(0xFF64748B))),
-          Text('₹\${value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('₹${value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -313,13 +337,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   }
 
   void _saveInvoice() async {
-    final nextNumber = ref.read(nextInvoiceNumberProvider).value ?? "INV-TEMP";
+    final invNumber = widget.existingInvoice?.invoiceNumber ?? ref.read(nextInvoiceNumberProvider).value ?? "INV-TEMP";
     final taxBreakup = GSTCalculator.calculateTaxBreakup(_invoiceItems, _isInterState);
     final taxable = GSTCalculator.calculateTotalTaxableAmount(_invoiceItems);
     final gstTotal = GSTCalculator.calculateTotalGst(_invoiceItems);
 
     final invoice = Invoice(
-      invoiceNumber: nextNumber,
+      id: widget.existingInvoice?.id,
+      invoiceNumber: invNumber,
       date: _selectedDate,
       customerId: _selectedCustomer!.id!,
       items: _invoiceItems,
@@ -333,7 +358,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
     await ref.read(invoiceListProvider.notifier).saveInvoice(invoice);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invoice saved successfully!')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.existingInvoice == null ? 'Invoice saved successfully!' : 'Invoice updated successfully!')));
       ref.invalidate(nextInvoiceNumberProvider);
       Navigator.pop(context);
     }

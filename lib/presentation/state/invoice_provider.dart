@@ -33,6 +33,28 @@ class InvoiceListNotifier extends StateNotifier<AsyncValue<List<Map<String, dyna
       state = AsyncValue.error(e, stack);
     }
   }
+
+  Future<void> deleteInvoice(int id) async {
+    try {
+      await _repository.deleteInvoice(id);
+      await loadInvoices();
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    try {
+      await _repository.updateStatus(id, status);
+      await loadInvoices();
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<Invoice?> getInvoiceDetails(int id) async {
+    return await _repository.getFullInvoice(id);
+  }
 }
 
 final invoiceListProvider = StateNotifierProvider<InvoiceListNotifier, AsyncValue<List<Map<String, dynamic>>>>((ref) {
