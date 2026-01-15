@@ -22,8 +22,15 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Upgraded version
       onCreate: _onCreate,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add item_name and hsn to invoice_items to store snapshots
+          await db.execute('ALTER TABLE invoice_items ADD COLUMN item_name TEXT');
+          await db.execute('ALTER TABLE invoice_items ADD COLUMN hsn TEXT');
+        }
+      },
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -31,7 +38,6 @@ class DBHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Company Profile
     await db.execute('''
       CREATE TABLE company_profile (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +52,6 @@ class DBHelper {
       )
     ''');
 
-    // Customers
     await db.execute('''
       CREATE TABLE customers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +66,6 @@ class DBHelper {
       )
     ''');
 
-    // Items
     await db.execute('''
       CREATE TABLE items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +78,6 @@ class DBHelper {
       )
     ''');
 
-    // Invoices
     await db.execute('''
       CREATE TABLE invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,12 +94,13 @@ class DBHelper {
       )
     ''');
 
-    // Invoice Items
     await db.execute('''
       CREATE TABLE invoice_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_id INTEGER,
         item_id INTEGER,
+        item_name TEXT,
+        hsn TEXT,
         quantity REAL,
         price REAL,
         gst_rate REAL,
@@ -107,7 +111,6 @@ class DBHelper {
       )
     ''');
 
-    // Tax Breakups
     await db.execute('''
       CREATE TABLE tax_breakups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

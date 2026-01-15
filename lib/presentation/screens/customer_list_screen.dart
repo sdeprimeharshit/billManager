@@ -48,7 +48,7 @@ class CustomerListScreen extends ConsumerWidget {
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
+                        color: Colors.black.withValues(alpha: 0.02),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -57,7 +57,7 @@ class CustomerListScreen extends ConsumerWidget {
                   child: Theme(
                     data: Theme.of(context).copyWith(dividerColor: const Color(0xFFF1F5F9)),
                     child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(const Color(0xFFF8FAFC)),
+                      headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
                       columns: const [
                         DataColumn(label: Text('NAME', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
                         DataColumn(label: Text('GSTIN', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)))),
@@ -129,7 +129,7 @@ class CustomerListScreen extends ConsumerWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 24,
