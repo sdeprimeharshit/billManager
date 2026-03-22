@@ -35,4 +35,5 @@ msix_config:
   publisher_display_name: SDE Prime
   identity_name: com.sdeprime.billmanager
   msix_version: 1.0.0.0
-  capabilities: internetClient, location # Add others if needed
+  capabilities: internetClient, location
+  install_certificate: false
