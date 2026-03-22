@@ -22,7 +22,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 7, 
+      version: 8, // Upgraded to version 8 for Default Terms
       onCreate: _onCreate,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -56,6 +56,9 @@ class DBHelper {
           await _addColumnSafely(db, 'invoices', 'gr_number', 'TEXT');
           await _addColumnSafely(db, 'invoices', 'eway_bill_number', 'TEXT');
         }
+        if (oldVersion < 8) {
+          await _addColumnSafely(db, 'company_profile', 'default_terms', 'TEXT');
+        }
       },
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -83,7 +86,8 @@ class DBHelper {
         email TEXT,
         bank_details TEXT,
         state TEXT,
-        state_code TEXT
+        state_code TEXT,
+        default_terms TEXT
       )
     ''');
 

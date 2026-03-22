@@ -8,6 +8,7 @@ class CompanyModel {
   final String? bankDetails;
   final String? state;
   final String? stateCode;
+  final String? defaultTerms;
 
   CompanyModel({
     this.id,
@@ -19,6 +20,7 @@ class CompanyModel {
     this.bankDetails,
     this.state,
     this.stateCode,
+    this.defaultTerms,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,6 +34,7 @@ class CompanyModel {
       'bank_details': bankDetails,
       'state': state,
       'state_code': stateCode,
+      'default_terms': defaultTerms,
     };
   }
 
@@ -46,6 +49,7 @@ class CompanyModel {
       bankDetails: map['bank_details'],
       state: map['state'],
       stateCode: map['state_code'],
+      defaultTerms: map['default_terms'],
     );
   }
 }

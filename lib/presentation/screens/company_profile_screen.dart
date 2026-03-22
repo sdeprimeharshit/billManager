@@ -134,6 +134,28 @@ class CompanyProfileScreen extends ConsumerWidget {
               ),
             ),
           ],
+          if (profile?.defaultTerms != null && profile!.defaultTerms!.isNotEmpty) ...[
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.description_outlined, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Default Terms & Conditions', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                        Text(profile.defaultTerms!, style: const TextStyle(color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -166,6 +188,7 @@ class CompanyProfileScreen extends ConsumerWidget {
     final stateCodeController = TextEditingController(text: profile?.stateCode);
     final addressController = TextEditingController(text: profile?.address);
     final bankDetailsController = TextEditingController(text: profile?.bankDetails);
+    final defaultTermsController = TextEditingController(text: profile?.defaultTerms);
 
     showDialog(
       context: context,
@@ -285,6 +308,14 @@ class CompanyProfileScreen extends ConsumerWidget {
                           maxLines: 3,
                           decoration: _buildInputDecoration('Bank Details (Name, Acc No, IFSC)', Icons.account_balance),
                         ),
+                        const SizedBox(height: 32),
+                        _buildFormLabel('Default Policy'),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: defaultTermsController,
+                          maxLines: 4,
+                          decoration: _buildInputDecoration('Default Terms & Conditions', Icons.description_outlined),
+                        ),
                       ],
                     ),
                   ),
@@ -321,6 +352,7 @@ class CompanyProfileScreen extends ConsumerWidget {
                       onPressed: () async {
                         if (formKey.currentState!.validate()) {
                           final company = CompanyModel(
+                            id: profile?.id,
                             name: nameController.text,
                             gstin: gstinController.text,
                             phone: phoneController.text,
@@ -329,6 +361,7 @@ class CompanyProfileScreen extends ConsumerWidget {
                             stateCode: stateCodeController.text,
                             address: addressController.text,
                             bankDetails: bankDetailsController.text,
+                            defaultTerms: defaultTermsController.text,
                           );
                           await ref.read(companyProfileProvider.notifier).saveProfile(company);
                           Navigator.pop(context);

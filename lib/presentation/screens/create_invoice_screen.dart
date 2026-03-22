@@ -9,6 +9,7 @@ import '../../domain/usecases/gst_calculator.dart';
 import '../state/customer_provider.dart';
 import '../state/item_provider.dart';
 import '../state/invoice_provider.dart';
+import '../state/company_provider.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final Invoice? existingInvoice;
@@ -58,6 +59,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _vehicleNoController.text = widget.existingInvoice!.vehicleNumber ?? "";
       _grNoController.text = widget.existingInvoice!.grNumber ?? "";
       _ewayBillController.text = widget.existingInvoice!.ewayBillNumber ?? "";
+    } else {
+      // For new invoice, pre-populate terms from company profile
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final profile = ref.read(companyProfileProvider).value;
+        if (profile?.defaultTerms != null) {
+          _notesController.text = profile!.defaultTerms!;
+        }
+      });
     }
   }
 
