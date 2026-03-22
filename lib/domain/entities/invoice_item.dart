@@ -20,4 +20,22 @@ class InvoiceItem {
   double get gstAmount => double.parse(((taxableValue * gstRate) / 100).toStringAsFixed(2));
   
   double get total => double.parse((taxableValue + gstAmount).toStringAsFixed(2));
+
+  InvoiceItem copyWith({
+    String? id,
+    String? itemName,
+    String? hsn,
+    double? quantity,
+    double? price,
+    double? gstRate,
+  }) {
+    return InvoiceItem(
+      id: id ?? this.id,
+      itemName: itemName ?? this.itemName,
+      hsn: hsn ?? this.hsn,
+      quantity: quantity ?? this.quantity,
+      price: price ?? this.price,
+      gstRate: gstRate ?? this.gstRate,
+    );
+  }
 }

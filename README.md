@@ -21,7 +21,7 @@ TODO:
 ~~3. 2526GE0001 encoding~~
 ~~4. default Term and conditions field in business profile form~~
 5. eway bill json creator action button
-6. make fields of item list editable in invoice form, populate default values from item
+~~6. make fields of item list editable in invoice form, populate default values from item~~
 6. UI - Logo option in profile and populate in bill pdf
 7. UI - Item list align
 8. Local backup in zip total/ google drive (single backup replace existing)

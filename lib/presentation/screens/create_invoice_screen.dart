@@ -60,7 +60,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _grNoController.text = widget.existingInvoice!.grNumber ?? "";
       _ewayBillController.text = widget.existingInvoice!.ewayBillNumber ?? "";
     } else {
-      // For new invoice, pre-populate terms from company profile
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final profile = ref.read(companyProfileProvider).value;
         if (profile?.defaultTerms != null) {
@@ -382,34 +381,82 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               ],
             ),
           ),
-          DataTable(
-            columns: const [
-              DataColumn(label: Text('Item')),
-              DataColumn(label: Text('Qty'), numeric: true),
-              DataColumn(label: Text('Price'), numeric: true),
-              DataColumn(label: Text('GST %'), numeric: true),
-              DataColumn(label: Text('Total'), numeric: true),
-              DataColumn(label: Text('')), 
-            ],
-            rows: _invoiceItems.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final item = entry.value;
-              return DataRow(cells: [
-                DataCell(Text(item.itemName)),
-                DataCell(Text(item.quantity.toString())),
-                DataCell(Text('₹${item.price.toStringAsFixed(2)}')),
-                DataCell(Text('${item.gstRate}%')),
-                DataCell(Text('₹${item.total.toStringAsFixed(2)}')),
-                DataCell(
-                  _isReadOnly 
-                  ? const SizedBox.shrink() 
-                  : IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: Colors.red), 
-                      onPressed: () => setState(() => _invoiceItems.removeAt(idx))
-                    )
-                ),
-              ]);
-            }).toList(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 24,
+              columns: const [
+                DataColumn(label: SizedBox(width: 250, child: Text('Item Name'))),
+                DataColumn(label: SizedBox(width: 80, child: Text('Qty')), numeric: true),
+                DataColumn(label: SizedBox(width: 120, child: Text('Price')), numeric: true),
+                DataColumn(label: SizedBox(width: 80, child: Text('GST %')), numeric: true),
+                DataColumn(label: Text('Total'), numeric: true),
+                DataColumn(label: Text('')), 
+              ],
+              rows: _invoiceItems.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final item = entry.value;
+                return DataRow(cells: [
+                  DataCell(Text(item.itemName)),
+                  DataCell(
+                    _isReadOnly 
+                    ? Text(item.quantity.toString())
+                    : TextFormField(
+                        initialValue: item.quantity.toString(),
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.right,
+                        onChanged: (val) {
+                          final newVal = double.tryParse(val);
+                          if (newVal != null) {
+                            setState(() => _invoiceItems[idx] = item.copyWith(quantity: newVal));
+                          }
+                        },
+                      ),
+                  ),
+                  DataCell(
+                    _isReadOnly 
+                    ? Text('₹${item.price.toStringAsFixed(2)}')
+                    : TextFormField(
+                        initialValue: item.price.toString(),
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.right,
+                        decoration: const InputDecoration(prefixText: '₹'),
+                        onChanged: (val) {
+                          final newVal = double.tryParse(val);
+                          if (newVal != null) {
+                            setState(() => _invoiceItems[idx] = item.copyWith(price: newVal));
+                          }
+                        },
+                      ),
+                  ),
+                  DataCell(
+                    _isReadOnly 
+                    ? Text('${item.gstRate}%')
+                    : TextFormField(
+                        initialValue: item.gstRate.toString(),
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.right,
+                        decoration: const InputDecoration(suffixText: '%'),
+                        onChanged: (val) {
+                          final newVal = double.tryParse(val);
+                          if (newVal != null) {
+                            setState(() => _invoiceItems[idx] = item.copyWith(gstRate: newVal));
+                          }
+                        },
+                      ),
+                  ),
+                  DataCell(Text('₹${item.total.toStringAsFixed(2)}')),
+                  DataCell(
+                    _isReadOnly 
+                    ? const SizedBox.shrink() 
+                    : IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red), 
+                        onPressed: () => setState(() => _invoiceItems.removeAt(idx))
+                      )
+                  ),
+                ]);
+              }).toList(),
+            ),
           ),
           if (_invoiceItems.isEmpty) const Padding(padding: EdgeInsets.all(32), child: Text('No items added yet.')),
         ],
@@ -420,47 +467,67 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   void _addItemDialog(AsyncValue<List<ItemModel>> itemsAsync) {
     ItemModel? selectedItem;
     final qtyController = TextEditingController(text: '1');
+    final priceController = TextEditingController();
+    final gstRateController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Item to Invoice'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            itemsAsync.when(
-              data: (items) => DropdownButtonFormField<ItemModel>(
-                decoration: const InputDecoration(labelText: 'Select Product'),
-                items: items.map((i) => DropdownMenuItem(value: i, child: Text(i.name))).toList(),
-                onChanged: (val) => selectedItem = val,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Item to Invoice'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              itemsAsync.when(
+                data: (items) => DropdownButtonFormField<ItemModel>(
+                  decoration: const InputDecoration(labelText: 'Select Product'),
+                  items: items.map((i) => DropdownMenuItem(value: i, child: Text(i.name))).toList(),
+                  onChanged: (val) {
+                    setDialogState(() {
+                      selectedItem = val;
+                      if (val != null) {
+                        priceController.text = val.price.toString();
+                        gstRateController.text = val.gstRate.toString();
+                      }
+                    });
+                  },
+                ),
+                loading: () => const CircularProgressIndicator(),
+                error: (e, _) => Text('Error: $e'),
               ),
-              loading: () => const CircularProgressIndicator(),
-              error: (e, _) => Text('Error: $e'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number)),
+                  const SizedBox(width: 16),
+                  Expanded(child: TextField(controller: priceController, decoration: const InputDecoration(labelText: 'Price'), keyboardType: TextInputType.number)),
+                  const SizedBox(width: 16),
+                  Expanded(child: TextField(controller: gstRateController, decoration: const InputDecoration(labelText: 'GST %'), keyboardType: TextInputType.number)),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (selectedItem != null) {
+                  setState(() {
+                    _invoiceItems.add(InvoiceItem(
+                      itemName: selectedItem!.name,
+                      hsn: selectedItem!.hsn,
+                      quantity: double.tryParse(qtyController.text) ?? 1.0,
+                      price: double.tryParse(priceController.text) ?? selectedItem!.price,
+                      gstRate: double.tryParse(gstRateController.text) ?? selectedItem!.gstRate,
+                    ));
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Add'),
             ),
-            const SizedBox(height: 16),
-            TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              if (selectedItem != null) {
-                setState(() {
-                  _invoiceItems.add(InvoiceItem(
-                    itemName: selectedItem!.name,
-                    hsn: selectedItem!.hsn,
-                    quantity: double.tryParse(qtyController.text) ?? 1.0,
-                    price: selectedItem!.price,
-                    gstRate: selectedItem!.gstRate,
-                  ));
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
   }
