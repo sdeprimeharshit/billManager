@@ -59,13 +59,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _vehicleNoController.text = widget.existingInvoice!.vehicleNumber ?? "";
       _grNoController.text = widget.existingInvoice!.grNumber ?? "";
       _ewayBillController.text = widget.existingInvoice!.ewayBillNumber ?? "";
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final profile = ref.read(companyProfileProvider).value;
-        if (profile?.defaultTerms != null) {
-          _notesController.text = profile!.defaultTerms!;
-        }
-      });
     }
   }
 
@@ -86,8 +79,18 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     if (widget.existingInvoice != null && _selectedCustomer == null && customers != null) {
       final match = customers.where((c) => c.id == widget.existingInvoice!.customerId).firstOrNull;
       if (match != null) {
-        setState(() => _selectedCustomer = match);
+        setState(() {
+           _selectedCustomer = match;
+        });
       }
+    }
+  }
+
+  void _updateShippingFromBilling() {
+    if (_selectedCustomer != null) {
+      _shippingNameController.text = _selectedCustomer!.name;
+      _shippingAddressController.text = _selectedCustomer!.address ?? "";
+      _shippingGstinController.text = _selectedCustomer!.gstin ?? "";
     }
   }
 
@@ -96,16 +99,31 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     final customersAsync = ref.watch(customerListProvider);
     final itemsAsync = ref.watch(itemListProvider);
     final nextInvoiceNumber = ref.watch(nextInvoiceNumberProvider);
+    final companyAsync = ref.watch(companyProfileProvider);
+
+    // Auto-populate default terms for NEW invoices when company data is available
+    if (!_isRealUpdate && widget.existingInvoice == null && _notesController.text.isEmpty) {
+      companyAsync.whenData((profile) {
+        if (profile?.defaultTerms != null && profile!.defaultTerms!.isNotEmpty) {
+          _notesController.text = profile.defaultTerms!;
+        }
+      });
+    }
 
     customersAsync.whenData(_syncSelectedCustomer);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: Text(_isReadOnly ? 'View Invoice ${widget.existingInvoice!.invoiceNumber}' : 
-                   (_isRealUpdate ? 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}' : 'Create New Tax Invoice'), 
-          style: const TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        title: Text(
+          _isReadOnly ? 'View Invoice ${widget.existingInvoice!.invoiceNumber}' : 
+          (_isRealUpdate ? 'Edit Invoice ${widget.existingInvoice!.invoiceNumber}' : 'Create New Tax Invoice'), 
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))
+        ),
       ),
       body: Column(
         children: [
@@ -119,26 +137,26 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 3, child: _buildBillingAndShipping(customersAsync)),
-                        const SizedBox(width: 32),
+                        Expanded(flex: 2, child: _buildBillingAndShipping(customersAsync)),
+                        const SizedBox(width: 24),
                         Expanded(flex: 1, child: Column(
                           children: [
                             _buildInvoiceMeta(nextInvoiceNumber),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             _buildTransportDetails(),
                           ],
                         )),
                       ],
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     _buildItemsSection(itemsAsync),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _buildNotesSection()),
-                        const SizedBox(width: 32),
-                        Expanded(child: _buildSummarySection()),
+                        Expanded(flex: 2, child: _buildNotesSection()),
+                        const SizedBox(width: 24),
+                        Expanded(flex: 1, child: _buildSummarySection()),
                       ],
                     ),
                   ],
@@ -146,37 +164,44 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+          _buildBottomActionBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomActionBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20)),
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(_isReadOnly ? 'Back' : 'Discard'),
-                ),
-                if (!_isReadOnly) ...[
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    height: 56,
-                    width: 250,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                      onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
-                      icon: const Icon(Icons.check),
-                      label: Text(_isRealUpdate ? 'Update Invoice' : 'Save Invoice'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            onPressed: () => Navigator.pop(context),
+            child: Text(_isReadOnly ? 'Back' : 'Discard', style: const TextStyle(color: Color(0xFF64748B))),
           ),
+          if (!_isReadOnly) ...[
+            const SizedBox(width: 16),
+            SizedBox(
+              height: 56,
+              width: 220,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                onPressed: _invoiceItems.isEmpty || _selectedCustomer == null ? null : _saveInvoice,
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(_isRealUpdate ? 'Update Invoice' : 'Save Invoice', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -185,6 +210,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   Widget _buildTransportDetails() {
     return Card(
       elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -195,13 +221,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionLabel('Transport Details'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             TextField(controller: _transporterController, decoration: _buildInputDecoration('Transporter Name', Icons.local_shipping_outlined)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(controller: _vehicleNoController, decoration: _buildInputDecoration('Vehicle No.', Icons.tag)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(controller: _grNoController, decoration: _buildInputDecoration('G/R No.', Icons.numbers)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(controller: _ewayBillController, decoration: _buildInputDecoration('E-Way Bill No.', Icons.receipt_long)),
           ],
         ),
@@ -214,6 +240,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       children: [
         Card(
           elevation: 0,
+          color: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -224,30 +251,47 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSectionLabel('Billed To'),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 customersAsync.when(
                   data: (customers) => DropdownButtonFormField<CustomerModel>(
                     value: _selectedCustomer,
                     decoration: _buildInputDecoration('Select Customer', Icons.person_outline),
                     items: customers.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                    onChanged: _isReadOnly ? null : (val) => setState(() => _selectedCustomer = val),
+                    onChanged: _isReadOnly ? null : (val) {
+                      setState(() {
+                         _selectedCustomer = val;
+                         // Always update the controllers so they are ready if toggle is flipped to False
+                         _updateShippingFromBilling();
+                      });
+                    },
                   ),
                   loading: () => const LinearProgressIndicator(),
                   error: (e, _) => Text('Error loading customers: $e'),
                 ),
                 if (_selectedCustomer != null) ...[
-                  const SizedBox(height: 16),
-                  Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(_selectedCustomer!.address ?? ""),
-                  Text('${_selectedCustomer!.state ?? ""} (${_selectedCustomer!.stateCode ?? ""})'),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                        const SizedBox(height: 4),
+                        Text(_selectedCustomer!.address ?? "", style: const TextStyle(color: Color(0xFF64748B))),
+                        Text('${_selectedCustomer!.state ?? ""} (${_selectedCustomer!.stateCode ?? ""})', style: const TextStyle(color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         Card(
           elevation: 0,
+          color: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -264,17 +308,16 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('Same as Billing', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        const Text('Same as Billing', style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 8),
                         Switch(
                           value: _isSameAsBilling,
+                          activeColor: const Color(0xFF2563EB),
                           onChanged: (val) {
                             setState(() {
                               _isSameAsBilling = val;
-                              if (val && _selectedCustomer != null) {
-                                _shippingNameController.text = _selectedCustomer!.name;
-                                _shippingAddressController.text = _selectedCustomer!.address ?? "";
-                                _shippingGstinController.text = _selectedCustomer!.gstin ?? "";
-                              }
+                              // On every toggle, ensure shipping controllers match billing info
+                              _updateShippingFromBilling();
                             });
                           },
                         ),
@@ -282,30 +325,40 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 if (!_isSameAsBilling) ...[
                   TextField(
                     controller: _shippingNameController,
                     decoration: _buildInputDecoration('Shipping Name', Icons.business_outlined),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _shippingAddressController,
                     decoration: _buildInputDecoration('Shipping Address', Icons.location_on_outlined),
                     maxLines: 2,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _shippingGstinController,
                     decoration: _buildInputDecoration('Shipping GSTIN', Icons.tag),
                   ),
                 ] else ...[
-                  if (_selectedCustomer != null) ...[
-                    Text(_selectedCustomer!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(_selectedCustomer!.address ?? ""),
-                    Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}'),
-                  ] else
-                    const Text('Select a customer or disable "Same as Billing" to enter details.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                  if (_selectedCustomer != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDCFCE7))),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_selectedCustomer!.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF166534))),
+                          Text(_selectedCustomer!.address ?? "", style: const TextStyle(color: Color(0xFF166534))),
+                          Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(color: Color(0xFF166534))),
+                        ],
+                      ),
+                    )
+                  else
+                    const Center(child: Text('Select a customer to mirror billing details', style: TextStyle(fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)))),
                 ],
               ],
             ),
@@ -320,6 +373,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     
     return Card(
       elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -330,25 +384,34 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionLabel('Invoice Details'),
-            const SizedBox(height: 16),
-            Text('Number: $displayNum', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Invoice #', style: TextStyle(color: Color(0xFF64748B))),
+                Text(displayNum, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+              ],
+            ),
+            const SizedBox(height: 20),
             InkWell(
               onTap: _isReadOnly ? null : () async {
                 final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
                 if (picked != null) setState(() => _selectedDate = picked);
               },
               child: InputDecorator(
-                decoration: _buildInputDecoration('Date', Icons.calendar_today_outlined),
-                child: Text(DateFormat('dd-MMM-yyyy').format(_selectedDate)),
+                decoration: _buildInputDecoration('Invoice Date', Icons.calendar_today_outlined),
+                child: Text(DateFormat('dd-MMM-yyyy').format(_selectedDate), style: const TextStyle(fontWeight: FontWeight.w500)),
               ),
             ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              title: const Text('Inter-state (IGST)'),
-              subtitle: const Text('Check if customer is outside your state'),
-              value: _isInterState,
-              onChanged: _isReadOnly ? null : (val) => setState(() => _isInterState = val ?? false),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+              child: SwitchListTile(
+                title: const Text('Inter-state (IGST)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF))),
+                subtitle: const Text('Customer is outside your state', style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF))),
+                value: _isInterState,
+                onChanged: _isReadOnly ? null : (val) => setState(() => _isInterState = val ?? false),
+              ),
             ),
           ],
         ),
@@ -359,14 +422,16 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   Widget _buildItemsSection(AsyncValue<List<ItemModel>> itemsAsync) {
     return Card(
       elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: const BoxDecoration(color: Color(0xFFF8FAFC), borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
             child: Row(
               children: [
@@ -374,8 +439,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 const Spacer(),
                 if (!_isReadOnly)
                   FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
                     onPressed: () => _addItemDialog(itemsAsync),
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add, size: 18),
                     label: const Text('Add Item'),
                   ),
               ],
@@ -384,20 +450,21 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              columnSpacing: 24,
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+              columnSpacing: 32,
               columns: const [
-                DataColumn(label: SizedBox(width: 250, child: Text('Item Name'))),
-                DataColumn(label: SizedBox(width: 80, child: Text('Qty')), numeric: true),
-                DataColumn(label: SizedBox(width: 120, child: Text('Price')), numeric: true),
-                DataColumn(label: SizedBox(width: 80, child: Text('GST %')), numeric: true),
-                DataColumn(label: Text('Total'), numeric: true),
+                DataColumn(label: SizedBox(width: 300, child: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold)))),
+                DataColumn(label: SizedBox(width: 100, child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold))), numeric: true),
+                DataColumn(label: SizedBox(width: 140, child: Text('Price', style: TextStyle(fontWeight: FontWeight.bold))), numeric: true),
+                DataColumn(label: SizedBox(width: 100, child: Text('GST %', style: TextStyle(fontWeight: FontWeight.bold))), numeric: true),
+                DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold)), numeric: true),
                 DataColumn(label: Text('')), 
               ],
               rows: _invoiceItems.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final item = entry.value;
                 return DataRow(cells: [
-                  DataCell(Text(item.itemName)),
+                  DataCell(Text(item.itemName, style: const TextStyle(fontWeight: FontWeight.w500))),
                   DataCell(
                     _isReadOnly 
                     ? Text(item.quantity.toString())
@@ -405,6 +472,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         initialValue: item.quantity.toString(),
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.right,
+                        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
                         onChanged: (val) {
                           final newVal = double.tryParse(val);
                           if (newVal != null) {
@@ -420,7 +488,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         initialValue: item.price.toString(),
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.right,
-                        decoration: const InputDecoration(prefixText: '₹'),
+                        decoration: const InputDecoration(prefixText: '₹', border: InputBorder.none),
                         onChanged: (val) {
                           final newVal = double.tryParse(val);
                           if (newVal != null) {
@@ -436,7 +504,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         initialValue: item.gstRate.toString(),
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.right,
-                        decoration: const InputDecoration(suffixText: '%'),
+                        decoration: const InputDecoration(suffixText: '%', border: InputBorder.none),
                         onChanged: (val) {
                           final newVal = double.tryParse(val);
                           if (newVal != null) {
@@ -445,12 +513,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         },
                       ),
                   ),
-                  DataCell(Text('₹${item.total.toStringAsFixed(2)}')),
+                  DataCell(Text('₹${item.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)))),
                   DataCell(
                     _isReadOnly 
                     ? const SizedBox.shrink() 
                     : IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red), 
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), 
                         onPressed: () => setState(() => _invoiceItems.removeAt(idx))
                       )
                   ),
@@ -458,7 +526,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               }).toList(),
             ),
           ),
-          if (_invoiceItems.isEmpty) const Padding(padding: EdgeInsets.all(32), child: Text('No items added yet.')),
+          if (_invoiceItems.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('Click "Add Item" to populate your invoice', style: TextStyle(color: Color(0xFF94A3B8))))),
         ],
       ),
     );
@@ -473,60 +541,78 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Item to Invoice'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              itemsAsync.when(
-                data: (items) => DropdownButtonFormField<ItemModel>(
-                  decoration: const InputDecoration(labelText: 'Select Product'),
-                  items: items.map((i) => DropdownMenuItem(value: i, child: Text(i.name))).toList(),
-                  onChanged: (val) {
-                    setDialogState(() {
-                      selectedItem = val;
-                      if (val != null) {
-                        priceController.text = val.price.toString();
-                        gstRateController.text = val.gstRate.toString();
-                      }
-                    });
-                  },
-                ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, _) => Text('Error: $e'),
-              ),
-              const SizedBox(height: 16),
-              Row(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number)),
-                  const SizedBox(width: 16),
-                  Expanded(child: TextField(controller: priceController, decoration: const InputDecoration(labelText: 'Price'), keyboardType: TextInputType.number)),
-                  const SizedBox(width: 16),
-                  Expanded(child: TextField(controller: gstRateController, decoration: const InputDecoration(labelText: 'GST %'), keyboardType: TextInputType.number)),
+                  const Text('Add Product to Invoice', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  itemsAsync.when(
+                    data: (items) => DropdownButtonFormField<ItemModel>(
+                      decoration: _buildInputDecoration('Select Product', Icons.inventory_2_outlined),
+                      items: items.map((i) => DropdownMenuItem(value: i, child: Text(i.name))).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedItem = val;
+                          if (val != null) {
+                            priceController.text = val.price.toString();
+                            gstRateController.text = val.gstRate.toString();
+                          }
+                        });
+                      },
+                    ),
+                    loading: () => const LinearProgressIndicator(),
+                    error: (e, _) => Text('Error: $e'),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(flex: 1, child: TextField(controller: qtyController, decoration: _buildInputDecoration('Quantity', Icons.add_box_outlined), keyboardType: TextInputType.number)),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 2, child: TextField(controller: priceController, decoration: _buildInputDecoration('Unit Price', Icons.payments_outlined).copyWith(prefixText: '₹'), keyboardType: TextInputType.number)),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 1, child: TextField(controller: gstRateController, decoration: _buildInputDecoration('GST %', Icons.percent), keyboardType: TextInputType.number)),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B)))),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                          onPressed: () {
+                            if (selectedItem != null) {
+                              setState(() {
+                                _invoiceItems.add(InvoiceItem(
+                                  itemName: selectedItem!.name,
+                                  hsn: selectedItem!.hsn,
+                                  quantity: double.tryParse(qtyController.text) ?? 1.0,
+                                  price: double.tryParse(priceController.text) ?? selectedItem!.price,
+                                  gstRate: double.tryParse(gstRateController.text) ?? selectedItem!.gstRate,
+                                ));
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
+                          child: const Text('Add to List', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (selectedItem != null) {
-                  setState(() {
-                    _invoiceItems.add(InvoiceItem(
-                      itemName: selectedItem!.name,
-                      hsn: selectedItem!.hsn,
-                      quantity: double.tryParse(qtyController.text) ?? 1.0,
-                      price: double.tryParse(priceController.text) ?? selectedItem!.price,
-                      gstRate: double.tryParse(gstRateController.text) ?? selectedItem!.gstRate,
-                    ));
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Add'),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -539,20 +625,21 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
     return Card(
       elevation: 0,
-      color: const Color(0xFFF1F5F9),
+      color: const Color(0xFF1E293B),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            _buildSummaryRow('Taxable Amount', taxable),
-            _buildSummaryRow('Total GST', gstTotal),
-            const Divider(height: 32),
+            _buildSummaryRow('Taxable Amount', taxable, isHighlight: false),
+            const SizedBox(height: 12),
+            _buildSummaryRow('Total GST', gstTotal, isHighlight: false),
+            const Divider(height: 32, color: Color(0xFF334155)),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Grand Total', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                const Text('Grand Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
               ],
             ),
           ],
@@ -561,37 +648,59 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     );
   }
 
-  Widget _buildSummaryRow(String label, double value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Color(0xFF64748B))),
-          Text('₹${value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummaryRow(String label, double value, {required bool isHighlight}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildSectionLabel('Terms / Notes'),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _notesController, 
-          maxLines: 5, 
-          readOnly: _isReadOnly,
-          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Bank details, terms of payment, etc.')
-        ),
+        Text(label, style: const TextStyle(color: Color(0xFF94A3B8))),
+        Text('₹${value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 16)),
       ],
     );
   }
 
+  Widget _buildNotesSection() {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0))),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionLabel('Terms / Notes'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _notesController, 
+              maxLines: 6, 
+              readOnly: _isReadOnly,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                hintText: 'Enter bank details, terms of payment, or additional notes here...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                fillColor: const Color(0xFFF8FAFC),
+                filled: true,
+              )
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   InputDecoration _buildInputDecoration(String label, IconData icon) {
-    return InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: const OutlineInputBorder());
+    return InputDecoration(
+      labelText: label, 
+      labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF94A3B8)), 
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF2563EB))),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      filled: true,
+      fillColor: Colors.white,
+    );
   }
 
   Widget _buildSectionLabel(String label) {
@@ -620,9 +729,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       isInterState: _isInterState,
       notes: _notesController.text,
       status: 'draft',
-      shippingName: _isSameAsBilling ? _selectedCustomer!.name : _shippingNameController.text,
-      shippingAddress: _isSameAsBilling ? _selectedCustomer!.address : _shippingAddressController.text,
-      shippingGstin: _isSameAsBilling ? _selectedCustomer!.gstin : _shippingGstinController.text,
+      shippingName: _isSameAsBilling ? null : _shippingNameController.text,
+      shippingAddress: _isSameAsBilling ? null : _shippingAddressController.text,
+      shippingGstin: _isSameAsBilling ? null : _shippingGstinController.text,
       isSameAsBilling: _isSameAsBilling,
       transporterName: _transporterController.text,
       vehicleNumber: _vehicleNoController.text,
