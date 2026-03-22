@@ -10,7 +10,7 @@ jobs:
           channel: 'stable'
       - run: flutter pub get
       - run: flutter build windows
-      - run: dart run msix:create --no-is-installer --dont-install-cert
+      - run: dart run msix:create --dont-install-cert --no-install
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
