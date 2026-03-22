@@ -229,7 +229,7 @@ class InvoicePdfGenerator {
           border: pw.Border(bottom: pw.BorderSide(width: 1), left: pw.BorderSide(width: 1), right: pw.BorderSide(width: 1))),
         columnWidths: {
           0: const pw.FixedColumnWidth(32),
-          1: const pw.FixedColumnWidth(310),
+          1: const pw.FixedColumnWidth(190),
           2: const pw.FixedColumnWidth(60),
           3: const pw.FixedColumnWidth(40),
           4: const pw.FixedColumnWidth(40),
