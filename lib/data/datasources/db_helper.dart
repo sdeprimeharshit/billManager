@@ -22,23 +22,19 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 5, // Upgraded to version 5 for status changes
+      version: 7, 
       onCreate: _onCreate,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute('ALTER TABLE invoice_items ADD COLUMN item_name TEXT');
-          await db.execute('ALTER TABLE invoice_items ADD COLUMN hsn TEXT');
+          await _addColumnSafely(db, 'invoice_items', 'item_name', 'TEXT');
+          await _addColumnSafely(db, 'invoice_items', 'hsn', 'TEXT');
         }
         if (oldVersion < 3) {
-          var tableInfo = await db.rawQuery('PRAGMA table_info(invoices)');
-          bool statusExists = tableInfo.any((column) => column['name'] == 'status');
-          if (!statusExists) {
-            await db.execute('ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT "draft"');
-          }
+          await _addColumnSafely(db, 'invoices', 'status', 'TEXT DEFAULT "draft"');
         }
         if (oldVersion < 4) {
           await db.execute('''
-            CREATE TABLE deleted_invoice_numbers (
+            CREATE TABLE IF NOT EXISTS deleted_invoice_numbers (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               invoice_number TEXT NOT NULL UNIQUE,
               deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -46,14 +42,34 @@ class DBHelper {
           ''');
         }
         if (oldVersion < 5) {
-          // Sync existing "Active" status to "draft" or "issued" if needed
           await db.execute("UPDATE invoices SET status = 'draft' WHERE status = 'Active'");
+        }
+        if (oldVersion < 6) {
+          await _addColumnSafely(db, 'invoices', 'shipping_name', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'shipping_address', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'shipping_gstin', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'is_same_as_billing', 'INTEGER DEFAULT 1');
+        }
+        if (oldVersion < 7) {
+          await _addColumnSafely(db, 'invoices', 'transporter_name', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'vehicle_number', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'gr_number', 'TEXT');
+          await _addColumnSafely(db, 'invoices', 'eway_bill_number', 'TEXT');
         }
       },
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
     );
+  }
+
+  /// Helper to add a column only if it doesn't already exist
+  Future<void> _addColumnSafely(Database db, String tableName, String columnName, String type) async {
+    var tableInfo = await db.rawQuery('PRAGMA table_info($tableName)');
+    bool exists = tableInfo.any((column) => column['name'] == columnName);
+    if (!exists) {
+      await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $type');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -109,6 +125,14 @@ class DBHelper {
         is_inter_state INTEGER,
         notes TEXT,
         status TEXT DEFAULT "draft",
+        shipping_name TEXT,
+        shipping_address TEXT,
+        shipping_gstin TEXT,
+        is_same_as_billing INTEGER DEFAULT 1,
+        transporter_name TEXT,
+        vehicle_number TEXT,
+        gr_number TEXT,
+        eway_bill_number TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers (id)
       )
@@ -145,7 +169,7 @@ class DBHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE deleted_invoice_numbers (
+      CREATE TABLE IF NOT EXISTS deleted_invoice_numbers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_number TEXT NOT NULL UNIQUE,
         deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
