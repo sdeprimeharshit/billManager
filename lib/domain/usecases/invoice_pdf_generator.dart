@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -209,19 +211,22 @@ class InvoicePdfGenerator {
   }
 
   static pw.Widget _buildItemsSection(Invoice invoice) {
+    const int fixedRows=50;
     return pw.Container(
       width: double.infinity,
       decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(width: 1)),
+        border: pw.Border(bottom: pw.BorderSide(width: 1),
+        left: pw.BorderSide(width: 1),
+        right: pw.BorderSide(width: 1)),
       ),
       child: pw.TableHelper.fromTextArray(
         border: const pw.TableBorder(
-          horizontalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey300),
           verticalInside: pw.BorderSide(width: 1),
         ),
         headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
         cellStyle: const pw.TextStyle(fontSize: 8),
-        headerDecoration: const pw.BoxDecoration(color: PdfColors.white),
+        headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200,
+          border: pw.Border(bottom: pw.BorderSide(width: 1), left: pw.BorderSide(width: 1), right: pw.BorderSide(width: 1))),
         columnWidths: {
           0: const pw.FixedColumnWidth(25),
           1: const pw.FlexColumnWidth(4),
@@ -231,18 +236,33 @@ class InvoicePdfGenerator {
           5: const pw.FixedColumnWidth(60),
           6: const pw.FixedColumnWidth(70),
         },
-        headers: ['S.No.', 'Description of Goods', 'HSN Code', 'UOM', 'Qty', 'Rate', 'Taxable Value'],
-        data: List.generate(invoice.items.length, (index) {
-          final item = invoice.items[index];
-          return [
-            '${index + 1}',
-            item.itemName,
-            item.hsn ?? "",
-            "Nos",
-            item.quantity.toString(),
-            _formatCurrency(item.price),
-            _formatCurrency(item.taxableValue),
-          ];
+        headers: ['S.No.', 'Description of Goods', 'HSN Code', 'UOM', 'Qty', 'Rate', 'GST%', 'Taxable Amount'],
+        data: List.generate(fixedRows, (index) {
+          if(index < invoice.items.length) {
+            final item = invoice.items[index];
+            return [
+              '${index + 1}',
+              item.itemName,
+              item.hsn ?? "",
+              "Nos",
+              item.quantity.toString(),
+              _formatCurrency(item.price),
+              '${item.gstRate}%',
+              _formatCurrency(item.taxableValue),
+            ];
+          }
+          else{
+            return [
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+            ];
+          }
         }),
         cellAlignments: {
           0: pw.Alignment.center,
@@ -252,6 +272,7 @@ class InvoicePdfGenerator {
           4: pw.Alignment.centerRight,
           5: pw.Alignment.centerRight,
           6: pw.Alignment.centerRight,
+          7: pw.Alignment.centerRight,
         },
       ),
     );
@@ -259,6 +280,7 @@ class InvoicePdfGenerator {
 
   static pw.Widget _buildBottomSection(Invoice invoice, CompanyModel company) {
     return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
       children: [
         _buildSummarySection(invoice, company),
         _buildFooter(invoice, company),
@@ -268,51 +290,58 @@ class InvoicePdfGenerator {
 
   static pw.Widget _buildSummarySection(Invoice invoice, CompanyModel company) {
     return pw.Container(
-      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 1))),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Expanded(
-            child: pw.Container(
-              padding: const pw.EdgeInsets.all(4),
-              decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 1))),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('Bank Details:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
-                  pw.Text(company.bankDetails ?? "N/A", style: const pw.TextStyle(fontSize: 8)),
-                  pw.SizedBox(height: 10),
-                  pw.Text('Total Amount in words:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('INR ${NumberToWords.convert(invoice.totalAmount)} Only', style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic)),
-                ],
-              ),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Column(
-              children: [
-                _summaryRow('Taxable Amount', invoice.totalTaxableAmount),
-                ...invoice.taxBreakups.map((b) => _summaryRow('GST @ ${b.gstRate}%', b.totalTax)),
-                _summaryRow('Total GST', invoice.totalGst),
-                pw.Container(
+      decoration: const pw.BoxDecoration(border: pw.Border(
+          bottom: pw.BorderSide(width: 1),
+      )
+      ),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                flex: 5,
+                child: pw.Container(
                   padding: const pw.EdgeInsets.all(4),
-                  decoration: const pw.BoxDecoration(
-                    color: PdfColors.grey200,
-                    border: pw.Border(top: pw.BorderSide(width: 1)),
-                  ),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 1))),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('Grand Total', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                      pw.Text('INR ${_formatCurrency(invoice.totalAmount)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Bank Details:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
+                      pw.Text(company.bankDetails ?? "N/A", style: const pw.TextStyle(fontSize: 8)),
+                      pw.SizedBox(height: 10),
+                      pw.Text('Total Amount in words:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('INR ${NumberToWords.convert(invoice.totalAmount)} Only', style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic)),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
+              ),
+              pw.Expanded(
+                flex: 3,
+                child: pw.Container(
+                  decoration: const pw.BoxDecoration(border: pw.Border(left: pw.BorderSide(width: 1))),
+                  child: pw.Column(
+                    children: [
+                      _summaryRow('Taxable Amount', invoice.totalTaxableAmount),
+                      ...invoice.taxBreakups.map((b) => _summaryRow('GST @ ${b.gstRate}%', b.totalTax)),
+                      _summaryRow('Total GST', invoice.totalGst),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(4),
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(top: pw.BorderSide(width: 1)),
+                        ),
+                        child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Grand Total', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('INR ${_formatCurrency(invoice.totalAmount)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                )
+              ),
+            ],
+          )
     );
   }
 
@@ -369,7 +398,7 @@ class NumberToWords {
     if (amount == 0) return "Zero";
     int val = amount.floor();
     String words = _convertInteger(val);
-    
+
     int paisa = ((amount - val) * 100).round();
     if (paisa > 0) {
       words += " and ${_convertInteger(paisa)} Paisa";
