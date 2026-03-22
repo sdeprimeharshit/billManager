@@ -22,9 +22,17 @@ dependencies:
   cupertino_icons: ^1.0.6
 
 dev_dependencies:
+  msix: ^3.16.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
+
+msix_config:
+  display_name: Bill Manager
+  publisher_display_name: SDE Prime
+  identity_name: com.sdeprime.billmanager
+  msix_version: 1.0.0.0
+  capabilities: internetClient, location # Add others if needed
