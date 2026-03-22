@@ -228,8 +228,8 @@ class InvoicePdfGenerator {
         headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200,
           border: pw.Border(bottom: pw.BorderSide(width: 1), left: pw.BorderSide(width: 1), right: pw.BorderSide(width: 1))),
         columnWidths: {
-          0: const pw.FixedColumnWidth(25),
-          1: const pw.FlexColumnWidth(4),
+          0: const pw.FixedColumnWidth(32),
+          1: const pw.FixedColumnWidth(310),
           2: const pw.FixedColumnWidth(60),
           3: const pw.FixedColumnWidth(40),
           4: const pw.FixedColumnWidth(40),
