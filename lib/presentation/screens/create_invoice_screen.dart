@@ -24,6 +24,18 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   List<InvoiceItem> _invoiceItems = [];
   bool _isInterState = false;
   final _notesController = TextEditingController();
+  
+  // Shipping Fields
+  bool _isSameAsBilling = true;
+  final _shippingNameController = TextEditingController();
+  final _shippingAddressController = TextEditingController();
+  final _shippingGstinController = TextEditingController();
+
+  // Transport Details
+  final _transporterController = TextEditingController();
+  final _vehicleNoController = TextEditingController();
+  final _grNoController = TextEditingController();
+  final _ewayBillController = TextEditingController();
 
   bool get _isRealUpdate => widget.existingInvoice != null && widget.existingInvoice!.id != null;
   bool get _isReadOnly => widget.existingInvoice?.status == 'issued' || widget.existingInvoice?.status == 'cancelled';
@@ -36,10 +48,32 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _invoiceItems = List.from(widget.existingInvoice!.items);
       _isInterState = widget.existingInvoice!.isInterState;
       _notesController.text = widget.existingInvoice!.notes ?? "";
+      
+      _isSameAsBilling = widget.existingInvoice!.isSameAsBilling;
+      _shippingNameController.text = widget.existingInvoice!.shippingName ?? "";
+      _shippingAddressController.text = widget.existingInvoice!.shippingAddress ?? "";
+      _shippingGstinController.text = widget.existingInvoice!.shippingGstin ?? "";
+
+      _transporterController.text = widget.existingInvoice!.transporterName ?? "";
+      _vehicleNoController.text = widget.existingInvoice!.vehicleNumber ?? "";
+      _grNoController.text = widget.existingInvoice!.grNumber ?? "";
+      _ewayBillController.text = widget.existingInvoice!.ewayBillNumber ?? "";
     }
   }
 
-  // Effect to select customer once data is available
+  @override
+  void dispose() {
+    _notesController.dispose();
+    _shippingNameController.dispose();
+    _shippingAddressController.dispose();
+    _shippingGstinController.dispose();
+    _transporterController.dispose();
+    _vehicleNoController.dispose();
+    _grNoController.dispose();
+    _ewayBillController.dispose();
+    super.dispose();
+  }
+
   void _syncSelectedCustomer(List<CustomerModel>? customers) {
     if (widget.existingInvoice != null && _selectedCustomer == null && customers != null) {
       final match = customers.where((c) => c.id == widget.existingInvoice!.customerId).firstOrNull;
@@ -55,7 +89,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     final itemsAsync = ref.watch(itemListProvider);
     final nextInvoiceNumber = ref.watch(nextInvoiceNumberProvider);
 
-    // Call sync on every build to handle the case where customers load late
     customersAsync.whenData(_syncSelectedCustomer);
 
     return Scaffold(
@@ -78,9 +111,15 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 2, child: _buildCustomerSelection(customersAsync)),
+                        Expanded(flex: 3, child: _buildBillingAndShipping(customersAsync)),
                         const SizedBox(width: 32),
-                        Expanded(flex: 1, child: _buildInvoiceMeta(nextInvoiceNumber)),
+                        Expanded(flex: 1, child: Column(
+                          children: [
+                            _buildInvoiceMeta(nextInvoiceNumber),
+                            const SizedBox(height: 16),
+                            _buildTransportDetails(),
+                          ],
+                        )),
                       ],
                     ),
                     const SizedBox(height: 32),
@@ -135,7 +174,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     );
   }
 
-  Widget _buildCustomerSelection(AsyncValue<List<CustomerModel>> customersAsync) {
+  Widget _buildTransportDetails() {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -147,27 +186,124 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionLabel('Billed To'),
+            _buildSectionLabel('Transport Details'),
             const SizedBox(height: 16),
-            customersAsync.when(
-              data: (customers) => DropdownButtonFormField<CustomerModel>(
-                value: _selectedCustomer,
-                decoration: _buildInputDecoration('Select Customer', Icons.person_outline),
-                items: customers.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                onChanged: _isReadOnly ? null : (val) => setState(() => _selectedCustomer = val),
-              ),
-              loading: () => const LinearProgressIndicator(),
-              error: (e, _) => Text('Error loading customers: $e'),
-            ),
-            if (_selectedCustomer != null) ...[
-              const SizedBox(height: 16),
-              Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(_selectedCustomer!.address ?? ""),
-              Text('${_selectedCustomer!.state ?? ""} (${_selectedCustomer!.stateCode ?? ""})'),
-            ],
+            TextField(controller: _transporterController, decoration: _buildInputDecoration('Transporter Name', Icons.local_shipping_outlined)),
+            const SizedBox(height: 12),
+            TextField(controller: _vehicleNoController, decoration: _buildInputDecoration('Vehicle No.', Icons.tag)),
+            const SizedBox(height: 12),
+            TextField(controller: _grNoController, decoration: _buildInputDecoration('G/R No.', Icons.numbers)),
+            const SizedBox(height: 12),
+            TextField(controller: _ewayBillController, decoration: _buildInputDecoration('E-Way Bill No.', Icons.receipt_long)),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBillingAndShipping(AsyncValue<List<CustomerModel>> customersAsync) {
+    return Column(
+      children: [
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionLabel('Billed To'),
+                const SizedBox(height: 16),
+                customersAsync.when(
+                  data: (customers) => DropdownButtonFormField<CustomerModel>(
+                    value: _selectedCustomer,
+                    decoration: _buildInputDecoration('Select Customer', Icons.person_outline),
+                    items: customers.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
+                    onChanged: _isReadOnly ? null : (val) => setState(() => _selectedCustomer = val),
+                  ),
+                  loading: () => const LinearProgressIndicator(),
+                  error: (e, _) => Text('Error loading customers: $e'),
+                ),
+                if (_selectedCustomer != null) ...[
+                  const SizedBox(height: 16),
+                  Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(_selectedCustomer!.address ?? ""),
+                  Text('${_selectedCustomer!.state ?? ""} (${_selectedCustomer!.stateCode ?? ""})'),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildSectionLabel('Shipped To'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Same as Billing', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Switch(
+                          value: _isSameAsBilling,
+                          onChanged: (val) {
+                            setState(() {
+                              _isSameAsBilling = val;
+                              if (val && _selectedCustomer != null) {
+                                _shippingNameController.text = _selectedCustomer!.name;
+                                _shippingAddressController.text = _selectedCustomer!.address ?? "";
+                                _shippingGstinController.text = _selectedCustomer!.gstin ?? "";
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (!_isSameAsBilling) ...[
+                  TextField(
+                    controller: _shippingNameController,
+                    decoration: _buildInputDecoration('Shipping Name', Icons.business_outlined),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _shippingAddressController,
+                    decoration: _buildInputDecoration('Shipping Address', Icons.location_on_outlined),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _shippingGstinController,
+                    decoration: _buildInputDecoration('Shipping GSTIN', Icons.tag),
+                  ),
+                ] else ...[
+                  if (_selectedCustomer != null) ...[
+                    Text(_selectedCustomer!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(_selectedCustomer!.address ?? ""),
+                    Text('GSTIN: ${_selectedCustomer!.gstin ?? "N/A"}'),
+                  ] else
+                    const Text('Select a customer or disable "Same as Billing" to enter details.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -408,6 +544,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       isInterState: _isInterState,
       notes: _notesController.text,
       status: 'draft',
+      shippingName: _isSameAsBilling ? _selectedCustomer!.name : _shippingNameController.text,
+      shippingAddress: _isSameAsBilling ? _selectedCustomer!.address : _shippingAddressController.text,
+      shippingGstin: _isSameAsBilling ? _selectedCustomer!.gstin : _shippingGstinController.text,
+      isSameAsBilling: _isSameAsBilling,
+      transporterName: _transporterController.text,
+      vehicleNumber: _vehicleNoController.text,
+      grNumber: _grNoController.text,
+      ewayBillNumber: _ewayBillController.text,
     );
 
     await ref.read(invoiceListProvider.notifier).saveInvoice(invoice);

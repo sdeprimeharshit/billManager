@@ -40,7 +40,15 @@ class InvoiceRepository {
         'total_gst': invoice.totalGst,
         'is_inter_state': invoice.isInterState ? 1 : 0,
         'notes': invoice.notes,
-        'status': invoice.status, // Uses entity status (default draft)
+        'status': invoice.status,
+        'shipping_name': invoice.shippingName,
+        'shipping_address': invoice.shippingAddress,
+        'shipping_gstin': invoice.shippingGstin,
+        'is_same_as_billing': invoice.isSameAsBilling ? 1 : 0,
+        'transporter_name': invoice.transporterName,
+        'vehicle_number': invoice.vehicleNumber,
+        'gr_number': invoice.grNumber,
+        'eway_bill_number': invoice.ewayBillNumber,
       };
 
       int invoiceId;
@@ -131,6 +139,14 @@ class InvoiceRepository {
       isInterState: invMap['is_inter_state'] == 1,
       notes: invMap['notes'] as String?,
       status: invMap['status'] as String? ?? 'draft',
+      shippingName: invMap['shipping_name'] as String?,
+      shippingAddress: invMap['shipping_address'] as String?,
+      shippingGstin: invMap['shipping_gstin'] as String?,
+      isSameAsBilling: invMap['is_same_as_billing'] == 1,
+      transporterName: invMap['transporter_name'] as String?,
+      vehicleNumber: invMap['vehicle_number'] as String?,
+      grNumber: invMap['gr_number'] as String?,
+      ewayBillNumber: invMap['eway_bill_number'] as String?,
     );
   }
 
@@ -153,22 +169,62 @@ class InvoiceRepository {
     });
   }
 
+  String _getFinancialYear() {
+    final now = DateTime.now();
+    int startYear;
+    int endYear;
+
+    if (now.month >= 4) {
+      startYear = now.year;
+      endYear = now.year + 1;
+    } else {
+      startYear = now.year - 1;
+      endYear = now.year;
+    }
+
+    // Format: 2526 (from 2025-2026)
+    return "${startYear.toString().substring(2)}${endYear.toString().substring(2)}";
+  }
+
   Future<String> getNextInvoiceNumber() async {
     final db = await _dbHelper.database;
+    final fyPrefix = _getFinancialYear();
+    final constant = "GE";
+    final prefix = "$fyPrefix$constant";
+
+    // 1. Check for deleted invoice numbers in the current format
+    final deleted = await db.query(
+      'deleted_invoice_numbers', 
+      where: 'invoice_number LIKE ?', 
+      whereArgs: ['$prefix%'],
+      orderBy: 'invoice_number ASC', 
+      limit: 1
+    );
     
-    final deleted = await db.query('deleted_invoice_numbers', orderBy: 'id ASC', limit: 1);
     if (deleted.isNotEmpty) {
       return deleted.first['invoice_number'] as String;
     }
 
-    final result = await db.rawQuery('SELECT invoice_number FROM invoices');
-    int maxNum = 0;
+    // 2. Find the maximum serial number for the current FY
+    final result = await db.query(
+      'invoices', 
+      columns: ['invoice_number'], 
+      where: 'invoice_number LIKE ?', 
+      whereArgs: ['$prefix%']
+    );
+
+    int maxSerial = 0;
     for (var row in result) {
-      String numStr = row['invoice_number'] as String;
-      int? val = int.tryParse(numStr.replaceAll(RegExp(r'[^0-9]'), ''));
-      if (val != null && val > maxNum) maxNum = val;
+      String fullNumber = row['invoice_number'] as String;
+      // Extract serial from "2526GE0001" -> "0001"
+      String serialStr = fullNumber.replaceFirst(prefix, "");
+      int? serial = int.tryParse(serialStr);
+      if (serial != null && serial > maxSerial) {
+        maxSerial = serial;
+      }
     }
     
-    return 'INV-${(maxNum + 1).toString().padLeft(4, '0')}';
+    final nextSerial = (maxSerial + 1).toString().padLeft(4, '0');
+    return "$prefix$nextSerial";
   }
 }

@@ -14,6 +14,18 @@ class Invoice {
   final bool isInterState;
   final String? notes;
   final String status; // draft, issued, cancelled
+  
+  // Shipping Fields
+  final String? shippingName;
+  final String? shippingAddress;
+  final String? shippingGstin;
+  final bool isSameAsBilling;
+
+  // Transport Details (Optional)
+  final String? transporterName;
+  final String? vehicleNumber;
+  final String? grNumber;
+  final String? ewayBillNumber;
 
   Invoice({
     this.id,
@@ -28,5 +40,13 @@ class Invoice {
     required this.isInterState,
     this.notes,
     this.status = 'draft',
+    this.shippingName,
+    this.shippingAddress,
+    this.shippingGstin,
+    this.isSameAsBilling = true,
+    this.transporterName,
+    this.vehicleNumber,
+    this.grNumber,
+    this.ewayBillNumber,
   });
 }
