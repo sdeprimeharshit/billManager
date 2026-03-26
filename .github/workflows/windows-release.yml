@@ -1,4 +1,4 @@
-name: Build Windows MSIX
+name: Build Windows App
 on: [push]
 jobs:
   build:
@@ -14,4 +14,3 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bill-manager-windows
-          path: build/windows/x64/runner/Release/*.msix
