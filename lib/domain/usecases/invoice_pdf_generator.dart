@@ -234,7 +234,8 @@ class InvoicePdfGenerator {
           3: const pw.FixedColumnWidth(40),
           4: const pw.FixedColumnWidth(40),
           5: const pw.FixedColumnWidth(60),
-          6: const pw.FixedColumnWidth(70),
+          6: const pw.FixedColumnWidth(50),
+          7: const pw.FixedColumnWidth(70),
         },
         headers: ['S.No.', 'Description of Goods', 'HSN Code', 'UOM', 'Qty', 'Rate', 'GST%', 'Taxable Amount'],
         data: List.generate(fixedRows, (index) {
@@ -321,7 +322,16 @@ class InvoicePdfGenerator {
                   child: pw.Column(
                     children: [
                       _summaryRow('Taxable Amount', invoice.totalTaxableAmount),
-                      ...invoice.taxBreakups.map((b) => _summaryRow('GST @ ${b.gstRate}%', b.totalTax)),
+                      ...invoice.taxBreakups.expand((b) {
+                        if (invoice.isInterState) {
+                          return [_summaryRow('IGST @ ${b.gstRate}%', b.igst)];
+                        } else {
+                          return [
+                            _summaryRow('CGST @ ${b.gstRate / 2}%', b.cgst),
+                            _summaryRow('SGST @ ${b.gstRate / 2}%', b.sgst),
+                          ];
+                        }
+                      }),
                       _summaryRow('Total GST', invoice.totalGst),
                       pw.Container(
                         padding: const pw.EdgeInsets.all(4),

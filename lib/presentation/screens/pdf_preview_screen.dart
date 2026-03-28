@@ -29,6 +29,7 @@ class PdfPreviewScreen extends ConsumerWidget {
         title: Text('Invoice ${invoice.invoiceNumber}'),
       ),
       body: PdfPreview(
+        pdfFileName: 'Invoice-${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w\s-]'), '_')}',
         build: (format) => InvoicePdfGenerator.generate(
           invoice,
           customer,
