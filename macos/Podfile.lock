@@ -1,5 +1,7 @@
 PODS:
   - FlutterMacOS (1.0.0)
+  - pdfx (1.0.0):
+    - FlutterMacOS
   - printing (1.0.0):
     - FlutterMacOS
   - screen_retriever (0.0.1):
@@ -37,6 +39,7 @@ PODS:
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - pdfx (from `Flutter/ephemeral/.symlinks/plugins/pdfx/macos`)
   - printing (from `Flutter/ephemeral/.symlinks/plugins/printing/macos`)
   - screen_retriever (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos`)
   - sqflite_darwin (from `Flutter/ephemeral/.symlinks/plugins/sqflite_darwin/darwin`)
@@ -50,6 +53,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
+  pdfx:
+    :path: Flutter/ephemeral/.symlinks/plugins/pdfx/macos
   printing:
     :path: Flutter/ephemeral/.symlinks/plugins/printing/macos
   screen_retriever:
@@ -63,6 +68,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  pdfx: 1e79f57f7a6ce2f4a4c30f21fa54d3dc82441b51
   printing: c4cf83c78fd684f9bc318e6aadc18972aa48f617
   screen_retriever: 4f97c103641aab8ce183fa5af3b87029df167936
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
