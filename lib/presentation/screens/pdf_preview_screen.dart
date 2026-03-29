@@ -19,6 +19,7 @@ class PdfPreviewScreen extends ConsumerStatefulWidget {
 class _PdfPreviewScreenState extends ConsumerState<PdfPreviewScreen> {
   PdfController? _pdfController;
   bool _isLoading = true;
+  String? _errorMessage;
   Uint8List? _pdfBytes;
 
   @override
@@ -28,40 +29,64 @@ class _PdfPreviewScreenState extends ConsumerState<PdfPreviewScreen> {
   }
 
   Future<void> _initPdf() async {
-    final customers = ref.read(customerListProvider).value;
-    final company = ref.read(companyProfileProvider).value;
+    try {
+      final customers = ref.read(customerListProvider).value;
+      final company = ref.read(companyProfileProvider).value;
 
-    if (customers != null && company != null) {
-      final customer = customers.firstWhere((c) => c.id == widget.invoice.customerId);
-      _pdfBytes = await InvoicePdfGenerator.generate(
-        widget.invoice,
-        customer,
-        company,
-      );
-      
-      _pdfController = PdfController(
-        document: PdfDocument.openData(_pdfBytes!),
-      );
-    }
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (customers != null && company != null) {
+        final customer = customers.firstWhere((c) => c.id == widget.invoice.customerId);
+        _pdfBytes = await InvoicePdfGenerator.generate(
+          widget.invoice,
+          customer,
+          company,
+        );
+        
+        _pdfController = PdfController(
+          document: PdfDocument.openData(_pdfBytes!),
+        );
+      } else {
+        _errorMessage = "Missing customer or company profile data.";
+      }
+    } catch (e) {
+      _errorMessage = "Error generating or rendering PDF: $e";
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _downloadPdf() async {
     if (_pdfBytes == null) return;
     
-    final fileName = 'Invoice-${widget.invoice.invoiceNumber.replaceAll(RegExp(r'[^\w\s-]'), '_')}.pdf';
-    
-    // On Desktop, this opens the system "Save As" / "Share" dialog
-    // which is the most reliable way to handle downloads without manual path management.
-    await Printing.sharePdf(
-      bytes: _pdfBytes!,
-      filename: fileName,
-    );
+    try {
+      final fileName = 'Invoice-${widget.invoice.invoiceNumber.replaceAll(RegExp(r'[^\w\s-]'), '_')}.pdf';
+      await Printing.sharePdf(
+        bytes: _pdfBytes!,
+        filename: fileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _printPdf() async {
+    if (_pdfBytes == null) return;
+    try {
+      await Printing.layoutPdf(onLayout: (_) => _pdfBytes!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Printing failed: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -79,10 +104,37 @@ class _PdfPreviewScreenState extends ConsumerState<PdfPreviewScreen> {
       );
     }
 
-    if (_pdfController == null) {
+    if (_errorMessage != null || _pdfController == null) {
       return Scaffold(
         appBar: AppBar(title: Text('Invoice ${widget.invoice.invoiceNumber}')),
-        body: const Center(child: Text('Failed to load PDF')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage ?? 'Failed to load PDF preview',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isLoading = true;
+                      _errorMessage = null;
+                    });
+                    _initPdf();
+                  },
+                  child: const Text('Retry'),
+                )
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -98,11 +150,7 @@ class _PdfPreviewScreenState extends ConsumerState<PdfPreviewScreen> {
           IconButton(
             icon: const Icon(Icons.print),
             tooltip: 'Print',
-            onPressed: () {
-              if (_pdfBytes != null) {
-                Printing.layoutPdf(onLayout: (_) => _pdfBytes!);
-              }
-            },
+            onPressed: _printPdf,
           ),
           const VerticalDivider(width: 20, indent: 15, endIndent: 15),
           IconButton(

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'customer_list_screen.dart';
 import 'item_list_screen.dart';
 import 'create_invoice_screen.dart';
 import 'company_profile_screen.dart';
 import 'pdf_preview_screen.dart';
 import '../state/invoice_provider.dart';
+import '../state/customer_provider.dart';
+import '../state/company_provider.dart';
 import '../../domain/entities/invoice.dart';
+import '../../domain/usecases/invoice_pdf_generator.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -111,6 +115,33 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
     super.dispose();
   }
 
+  Future<void> _downloadInvoice(Invoice invoice) async {
+    try {
+      final customers = ref.read(customerListProvider).value;
+      final company = ref.read(companyProfileProvider).value;
+
+      if (customers == null || company == null) {
+        throw Exception("Missing data to generate PDF");
+      }
+
+      final customer = customers.firstWhere((c) => c.id == invoice.customerId);
+      final pdfBytes = await InvoicePdfGenerator.generate(invoice, customer, company);
+      
+      final fileName = 'Invoice-${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w\s-]'), '_')}.pdf';
+      
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: fileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final invoicesAsync = ref.watch(invoiceListProvider);
@@ -179,7 +210,7 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.02),
+                          color: Colors.black.withOpacity(0.02),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -206,7 +237,7 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
 
                           return DataRow(
                             color: WidgetStateProperty.resolveWith<Color?>((states) {
-                              if (isCancelled) return Colors.red.withValues(alpha: 0.02);
+                              if (isCancelled) return Colors.red.withOpacity(0.02);
                               return null;
                             }),
                             cells: [
@@ -220,7 +251,7 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF64748B), size: 20),
-                                    tooltip: 'Print / PDF',
+                                    tooltip: 'Preview / Print',
                                     onPressed: isCancelled ? null : () async {
                                       final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
                                       if (fullInvoice != null && context.mounted) {
@@ -228,6 +259,16 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
                                           context,
                                           MaterialPageRoute(builder: (context) => PdfPreviewScreen(invoice: fullInvoice)),
                                         );
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.download_outlined, color: Color(0xFF64748B), size: 20),
+                                    tooltip: 'Direct Download',
+                                    onPressed: isCancelled ? null : () async {
+                                      final fullInvoice = await ref.read(invoiceListProvider.notifier).getInvoiceDetails(invId);
+                                      if (fullInvoice != null) {
+                                        await _downloadInvoice(fullInvoice);
                                       }
                                     },
                                   ),
@@ -311,7 +352,7 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
                 );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: \$err')),
+        error: (err, stack) => Center(child: Text('Error: $err')),
       ),
     );
   }
@@ -324,9 +365,9 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Text(
         status.toUpperCase(),
@@ -340,7 +381,7 @@ class _InvoiceManagementScreenState extends ConsumerState<InvoiceManagementScree
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Permanently?'),
-        content: Text('Invoice \$number will be removed from the database.'),
+        content: Text('Invoice $number will be removed from the database.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
