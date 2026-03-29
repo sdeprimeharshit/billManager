@@ -211,7 +211,7 @@ class InvoicePdfGenerator {
   }
 
   static pw.Widget _buildItemsSection(Invoice invoice) {
-    const int fixedRows=50;
+    const int fixedRows=20;
     return pw.Container(
       width: double.infinity,
       decoration: const pw.BoxDecoration(
