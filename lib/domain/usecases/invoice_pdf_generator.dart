@@ -22,33 +22,41 @@ class InvoicePdfGenerator {
   ) async {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd-MMM-yyyy');
+    
+    final copyTypes = [
+      'Original for Recipient',
+      'Transporter Copy',
+      'Supplier Copy',
+    ];
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        build: (context) => pw.Container(
-          height: PdfPageFormat.a4.availableHeight,
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-          child: pw.Column(
-            children: [
-              _buildHeader(company, invoice, dateFormat),
-              _buildMetadataSection(invoice, company, dateFormat),
-              _buildBillingShippingSection(invoice, customer),
-              // Items section expanded to fill middle space
-              pw.Expanded(child: _buildItemsSection(invoice)),
-              // Bottom section will now be pushed to the end of the page
-              _buildBottomSection(invoice, company),
-            ],
+    for (var copyType in copyTypes) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          build: (context) => pw.Container(
+            height: PdfPageFormat.a4.availableHeight,
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            child: pw.Column(
+              children: [
+                _buildHeader(company, invoice, dateFormat, copyType),
+                _buildMetadataSection(invoice, company, dateFormat),
+                _buildBillingShippingSection(invoice, customer),
+                // Items section expanded to fill middle space
+                pw.Expanded(child: _buildItemsSection(invoice)),
+                // Bottom section will now be pushed to the end of the page
+                _buildBottomSection(invoice, company),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
     return pdf.save();
   }
 
-  static pw.Widget _buildHeader(CompanyModel company, Invoice invoice, DateFormat df) {
+  static pw.Widget _buildHeader(CompanyModel company, Invoice invoice, DateFormat df, String copyType) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
       decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 1))),
@@ -59,7 +67,7 @@ class InvoicePdfGenerator {
             children: [
               pw.Text('Tax Invoice', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
               pw.Text('|| RADHEY RADHEY ||', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              pw.Text('(Original for Recipient)', style: const pw.TextStyle(fontSize: 7)),
+              pw.Text('($copyType)', style: const pw.TextStyle(fontSize: 7)),
             ],
           ),
           pw.SizedBox(height: 10),
