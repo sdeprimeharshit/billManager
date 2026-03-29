@@ -159,7 +159,7 @@ class InvoicePdfGenerator {
                     padding: const pw.EdgeInsets.all(2),
                     decoration: const pw.BoxDecoration(
                       color: PdfColors.grey200,
-                      border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
+                      border: pw.Border(bottom: pw.BorderSide(width: 0.5), left: pw.BorderSide(width: 1)),
                     ),
                     child: pw.Text(' Details of Receiver | Billed to:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   ),
@@ -188,7 +188,7 @@ class InvoicePdfGenerator {
                   padding: const pw.EdgeInsets.all(2),
                   decoration: const pw.BoxDecoration(
                     color: PdfColors.grey200,
-                    border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
+                    border: pw.Border(bottom: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 1)),
                   ),
                   child: pw.Text(' Details of Consignee | Shipped to:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 ),
